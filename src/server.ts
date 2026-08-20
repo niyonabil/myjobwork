@@ -33,38 +33,78 @@ app.use(express.json({ limit: '50mb' }));
 
 const angularApp = new AngularNodeAppEngine();
 
-// --- NOTIFICATION HELPER ---
-async function createNotification(db: AppDatabase, order: Order, title: string, message: string) {
+// --- NOTIFICATION HELPERS ---
+async function dispatchNotificationToUsers(
+  db: AppDatabase,
+  userIds: string[],
+  order: { id: string; reference: string },
+  title: string,
+  message: string
+) {
   try {
-    let recipientId: string | null = null;
-    if (order.partnerId) {
-      recipientId = order.partnerId;
-    } else if (order.customerDetails?.email) {
-      const clientUser = db.users.find((u: User) => u.email.toLowerCase() === order.customerDetails?.email.toLowerCase());
-      if (clientUser) {
-        recipientId = clientUser.id;
-      }
+    if (!db.notifications) {
+      db.notifications = [];
     }
-
-    if (recipientId) {
-      const newNotification = {
+    const cleanIds = Array.from(new Set(userIds.filter(id => Boolean(id) && id.trim().length > 0)));
+    for (const uid of cleanIds) {
+      db.notifications.unshift({
         id: 'not-' + Math.random().toString(36).substring(2, 9),
-        userId: recipientId,
+        userId: uid,
         orderId: order.id,
         orderReference: order.reference,
         title,
         message,
         read: false,
         createdAt: new Date().toISOString()
-      };
-      if (!db.notifications) {
-        db.notifications = [];
-      }
-      db.notifications.unshift(newNotification);
+      });
     }
   } catch (err) {
-    console.error('Error creating notification:', err);
+    console.error('Error dispatching notification:', err);
   }
+}
+
+async function notifyOrderStakeholders(
+  db: AppDatabase,
+  order: Order,
+  title: string,
+  message: string,
+  options: { includeClient?: boolean; includePartner?: boolean; includeAdmins?: boolean; includeAssigned?: boolean } = {
+    includeClient: true,
+    includePartner: true,
+    includeAdmins: true,
+    includeAssigned: true
+  }
+) {
+  const targetIds: string[] = [];
+
+  // Direct client
+  if (options.includeClient !== false && order.customerDetails?.email) {
+    const clientUser = db.users.find((u: User) => u.email.toLowerCase() === order.customerDetails?.email.toLowerCase());
+    if (clientUser) {
+      targetIds.push(clientUser.id);
+    }
+  }
+
+  // Partner
+  if (options.includePartner !== false && order.partnerId) {
+    targetIds.push(order.partnerId);
+  }
+
+  // Admins
+  if (options.includeAdmins) {
+    const adminUsers = db.users.filter((u: User) => u.role === 'admin' && u.active);
+    adminUsers.forEach(a => targetIds.push(a.id));
+  }
+
+  // Assigned Operator & QA
+  if (options.includeAssigned) {
+    order.tasks?.forEach(t => {
+      if (t.operatorId) targetIds.push(t.operatorId);
+      if (t.qaId) targetIds.push(t.qaId);
+    });
+  }
+
+  await dispatchNotificationToUsers(db, targetIds, order, title, message);
 }
 
 // --- REST API ENDPOINTS ---
@@ -119,20 +159,76 @@ app.post('/api/notifications/read-all', async (req, res) => {
   }
 });
 
+app.delete('/api/notifications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await loadDatabase();
+    if (db.notifications) {
+      const idx = db.notifications.findIndex(n => n.id === id);
+      if (idx >= 0) {
+        db.notifications.splice(idx, 1);
+        await saveDatabase(db);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.delete('/api/notifications', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const db = await loadDatabase();
+    if (db.notifications && userId) {
+      db.notifications = db.notifications.filter(n => n.userId !== userId || !n.read);
+      await saveDatabase(db);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // Auth Endpoints
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      res.status(400).json({ error: 'Adresse e-mail requise.' });
+    const { email, username, identifier, password } = req.body;
+    const loginId = (identifier || email || username || '').toString().trim().toLowerCase();
+    
+    if (!loginId) {
+      res.status(400).json({ error: 'Nom d\'utilisateur ou adresse e-mail requis.' });
       return;
     }
+
+    if (!password) {
+      res.status(400).json({ error: 'Mot de passe requis.' });
+      return;
+    }
+
     const db = await loadDatabase();
-    const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
+    const user = db.users.find(u => 
+      u.email.toLowerCase() === loginId || 
+      (u.username && u.username.toLowerCase() === loginId)
+    );
+
     if (!user) {
-      res.status(401).json({ error: 'Cette adresse e-mail n\'existe pas dans notre base de données. Veuillez vous inscrire.' });
+      res.status(401).json({ error: 'Compte introuvable pour cet identifiant (nom d\'utilisateur ou e-mail).' });
       return;
     }
+
+    // Check password if set on user record
+    if (user.password && user.password !== password.trim()) {
+      res.status(401).json({ error: 'Mot de passe incorrect. Veuillez réessayer.' });
+      return;
+    }
+
+    // If user has no password yet (legacy), initialize it
+    if (!user.password && password) {
+      user.password = password.trim();
+      await saveDatabase(db);
+    }
+
     res.json({ user, token: 'token-' + user.id });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -141,24 +237,34 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, role, phone, city, address, company, ice, createdByUserId, createdByRole } = req.body;
-    if (!name || !email || !role) {
-      res.status(400).json({ error: 'Champs requis manquants (Nom, Email, Rôle).' });
+    const { name, username, email, password, role, phone, city, address, company, ice, createdByUserId, createdByRole } = req.body;
+    if (!name || !email || !role || !password) {
+      res.status(400).json({ error: 'Champs requis manquants (Nom, Email, Mot de passe, Rôle).' });
       return;
     }
     
     const db = await loadDatabase();
     const normalizedEmail = email.toLowerCase().trim();
-    const existing = db.users.find(u => u.email.toLowerCase() === normalizedEmail);
-    if (existing) {
+    const normalizedUsername = (username || email.split('@')[0] || '').toLowerCase().trim();
+
+    const existingEmail = db.users.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (existingEmail) {
       res.status(400).json({ error: 'Un utilisateur avec cette adresse e-mail existe déjà.' });
       return;
     }
 
-    const newUser = {
+    const existingUsername = db.users.find(u => u.username && u.username.toLowerCase() === normalizedUsername);
+    if (existingUsername) {
+      res.status(400).json({ error: 'Ce nom d\'utilisateur est déjà utilisé. Veuillez en choisir un autre.' });
+      return;
+    }
+
+    const newUser: User = {
       id: 'usr-' + Math.random().toString(36).substring(2, 9),
       name,
+      username: normalizedUsername,
       email: normalizedEmail,
+      password: password.trim(),
       role,
       phone: phone || '',
       city: city || 'Casablanca',
@@ -214,11 +320,21 @@ app.post('/api/services', async (req, res) => {
     const service: Service = req.body;
     const { userId, userName } = req.query;
     const db = await loadDatabase();
+    if (!service.name || !service.category) {
+      res.status(400).json({ error: 'Le nom et la catégorie du service sont obligatoires.' });
+      return;
+    }
     const existingIdx = db.services.findIndex(s => s.id === service.id);
     if (existingIdx >= 0) {
-      db.services[existingIdx] = service;
+      db.services[existingIdx] = { ...db.services[existingIdx], ...service };
     } else {
-      service.id = 'srv-' + Math.random().toString(36).substring(2, 9);
+      service.id = service.id || ('srv-' + Math.random().toString(36).substring(2, 9));
+      if (typeof service.isActive === 'undefined') {
+        service.isActive = true;
+      }
+      if (!service.options) {
+        service.options = [];
+      }
       db.services.push(service);
     }
     await saveDatabase(db);
@@ -226,9 +342,62 @@ app.post('/api/services', async (req, res) => {
       (userId as string) || 'system',
       (userName as string) || 'Administrateur',
       'Mise à jour catalogue',
-      `Service "${service.name}" mis à jour ou créé.`
+      `Service "${service.name}" (${service.id}) enregistré dans le catalogue.`
     );
     res.json(service);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.put('/api/services/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData: Partial<Service> = req.body;
+    const { userId, userName } = req.query;
+    const db = await loadDatabase();
+    const idx = db.services.findIndex(s => s.id === id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Service non trouvé.' });
+      return;
+    }
+    db.services[idx] = {
+      ...db.services[idx],
+      ...updateData,
+      id
+    };
+    await saveDatabase(db);
+    await logAction(
+      (userId as string) || 'system',
+      (userName as string) || 'Administrateur',
+      'Modification Service',
+      `Service "${db.services[idx].name}" (${id}) modifié.`
+    );
+    res.json(db.services[idx]);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.delete('/api/services/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, userName } = req.query;
+    const db = await loadDatabase();
+    const idx = db.services.findIndex(s => s.id === id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Service non trouvé.' });
+      return;
+    }
+    const removedService = db.services.splice(idx, 1)[0];
+    await saveDatabase(db);
+    await logAction(
+      (userId as string) || 'system',
+      (userName as string) || 'Administrateur',
+      'Suppression Service',
+      `Service "${removedService?.name || id}" supprimé du catalogue.`
+    );
+    res.json({ success: true, id, message: 'Service supprimé avec succès.' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -358,6 +527,16 @@ app.post('/api/orders', async (req, res) => {
     newOrder.deadline = deadlineDate.toISOString();
 
     db.orders.unshift(newOrder);
+
+    // Notify client/partner and admins about the new order
+    await notifyOrderStakeholders(
+      db,
+      newOrder,
+      'Nouvelle commande enregistrée',
+      `La commande ${reference} (${newOrder.serviceName}) a été enregistrée avec succès. Statut: En attente d'analyse.`,
+      { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: false }
+    );
+
     await saveDatabase(db);
 
     const actorId = orderData.partnerId || 'client-direct';
@@ -385,18 +564,94 @@ app.post('/api/orders/:id/status', async (req, res) => {
     order.status = status;
     order.updatedAt = new Date().toISOString();
 
-    // Notification triggers based on state changes
-    if (status === 'LIVRE') {
-      await createNotification(db, order, 'Travail livré', `Le travail pour votre commande ${order.reference} a été livré.`);
-    } else if (status === 'TERMINE') {
-      await createNotification(db, order, 'Commande terminée', `Votre commande ${order.reference} est désormais clôturée.`);
-    } else if (status === 'ANNULE') {
-      await createNotification(db, order, 'Commande annulée', `Votre commande ${order.reference} a été annulée.`);
-    } else if (status === 'REFUSE') {
-      await createNotification(db, order, 'Commande refusée', `Votre commande ${order.reference} a été refusée.`);
-    } else if (status === 'EN_TRAITEMENT') {
-      await createNotification(db, order, 'Traitement démarré', `Votre commande ${order.reference} est en cours de traitement par notre équipe.`);
-    }
+    // Map rich status change notifications
+    const statusMessages: Record<string, { title: string; message: string }> = {
+      DEMANDE_ENVOYEE: {
+        title: 'Demande enregistrée',
+        message: `La commande ${order.reference} a été enregistrée.`
+      },
+      EN_ATTENTE_ANALYSE: {
+        title: 'Analyse en cours',
+        message: `L'équipe technique analyse les documents de la commande ${order.reference}.`
+      },
+      DEVIS_EN_PREPARATION: {
+        title: 'Devis en cours de préparation',
+        message: `Votre devis pour la commande ${order.reference} est en préparation.`
+      },
+      DEVIS_ENVOYE: {
+        title: 'Devis disponible',
+        message: `Un devis a été émis pour votre commande ${order.reference}. Veuillez le consulter et le valider.`
+      },
+      EN_ATTENTE_ACOMPTE: {
+        title: 'En attente d\'acompte',
+        message: `Le devis pour la commande ${order.reference} est accepté. En attente du règlement de l'acompte.`
+      },
+      ACOMPTE_PAYE: {
+        title: 'Acompte validé',
+        message: `L'acompte de la commande ${order.reference} a été validé. La commande passe en production.`
+      },
+      EN_FILE_ATTENTE: {
+        title: 'En file d\'attente',
+        message: `La commande ${order.reference} est assignée et placée en file d'attente de traitement.`
+      },
+      EN_TRAITEMENT: {
+        title: 'Traitement en cours',
+        message: `Le travail de numérisation / traitement pour ${order.reference} est en cours de réalisation.`
+      },
+      CONTROLE_QUALITE: {
+        title: 'Contrôle qualité en cours',
+        message: `Le travail final de la commande ${order.reference} est en cours de vérification de conformité.`
+      },
+      TRAVAIL_TERMINE: {
+        title: 'Travail terminé & validé',
+        message: `Le travail pour la commande ${order.reference} a été validé avec succès par le contrôle qualité.`
+      },
+      EN_ATTENTE_SOLDE: {
+        title: 'En attente du solde',
+        message: `Le travail ${order.reference} est prêt. Veuillez régler le solde pour accéder à la version finale.`
+      },
+      SOLDE_PAYE: {
+        title: 'Solde validé',
+        message: `Paiement du solde reçu pour ${order.reference}. Le document est prêt pour livraison / téléchargement.`
+      },
+      PRET_A_LIVRER: {
+        title: 'Prêt pour livraison',
+        message: `La commande ${order.reference} est prête pour remise ou expédition.`
+      },
+      LIVRE: {
+        title: 'Travail livré',
+        message: `Le travail pour votre commande ${order.reference} a été livré avec succès.`
+      },
+      TERMINE: {
+        title: 'Commande clôturée',
+        message: `Votre commande ${order.reference} est désormais clôturée.`
+      },
+      ANNULE: {
+        title: 'Commande annulée',
+        message: `La commande ${order.reference} a été annulée.`
+      },
+      REFUSE: {
+        title: 'Commande refusée',
+        message: `La commande ${order.reference} a été refusée.`
+      },
+      BLOQUE: {
+        title: 'Commande bloquée',
+        message: `La commande ${order.reference} nécessite des informations complémentaires de votre part.`
+      }
+    };
+
+    const notifInfo = statusMessages[status] || {
+      title: 'Statut mis à jour',
+      message: `Le statut de la commande ${order.reference} est maintenant "${status.replace(/_/g, ' ')}".`
+    };
+
+    await notifyOrderStakeholders(
+      db,
+      order,
+      notifInfo.title,
+      notifInfo.message,
+      { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: true }
+    );
 
     await saveDatabase(db);
 
@@ -460,7 +715,13 @@ app.post('/api/orders/:id/quote', async (req, res) => {
     order.status = 'DEVIS_ENVOYE';
     order.updatedAt = new Date().toISOString();
 
-    await createNotification(db, order, 'Devis reçu', `Le devis pour votre commande ${order.reference} a été émis. Montant : ${newQuote.totalAmount} DH.`);
+    await notifyOrderStakeholders(
+      db,
+      order,
+      'Devis disponible',
+      `Le devis ${quoteRef} (${newQuote.totalAmount} DH) a été émis pour votre commande ${order.reference}.`,
+      { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: false }
+    );
 
     await saveDatabase(db);
 
@@ -513,10 +774,27 @@ app.post('/api/orders/:id/quote/action', async (req, res) => {
       };
       db.invoices.push(newInvoice);
 
+      await notifyOrderStakeholders(
+        db,
+        order,
+        'Devis accepté',
+        `Le devis pour la commande ${order.reference} a été accepté. Facture d'acompte émise (${quote.depositAmount} DH).`,
+        { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: false }
+      );
+
       await logAction(userId, userName, 'Acceptation Devis', `Devis ${quote.reference} accepté par le client. Facture d'acompte ${invoiceRef} émise.`);
     } else {
       quote.status = 'refused';
       order.status = 'REFUSE';
+
+      await notifyOrderStakeholders(
+        db,
+        order,
+        'Devis refusé',
+        `Le devis pour la commande ${order.reference} a été refusé.`,
+        { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: false }
+      );
+
       await logAction(userId, userName, 'Refus Devis', `Devis ${quote.reference} refusé par le client.`);
     }
 
@@ -557,6 +835,16 @@ app.post('/api/orders/:id/assign', async (req, res) => {
     order.tasks = [task]; // assign or replace
     order.status = 'EN_FILE_ATTENTE';
     order.updatedAt = new Date().toISOString();
+
+    // Notify assigned operator and QA as well as admins & client
+    await notifyOrderStakeholders(
+      db,
+      order,
+      'Commande assignée',
+      `La commande ${order.reference} a été assignée à ${operatorName} (Contrôleur: ${qaName || 'Non défini'}).`,
+      { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: true }
+    );
+
     await saveDatabase(db);
 
     await logAction(
@@ -703,7 +991,13 @@ app.post('/api/orders/:id/qa', async (req, res) => {
       }
 
       // Trigger notification
-      await createNotification(db, order, 'Travail terminé & validé', `Le contrôle de qualité a été validé avec succès pour votre commande ${order.reference}. Le travail est prêt.`);
+      await notifyOrderStakeholders(
+        db,
+        order,
+        'Travail terminé & validé',
+        `Le contrôle de qualité a été validé avec succès pour votre commande ${order.reference}. Le travail est prêt.`,
+        { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: true }
+      );
 
       // Generate Balance Invoice (Solde)
       const quote = db.quotes.find(q => q.orderId === order.id);
@@ -730,6 +1024,15 @@ app.post('/api/orders/:id/qa', async (req, res) => {
       }
     } else if (action === 'reject') {
       order.status = 'EN_TRAITEMENT'; // Redirection to Treatment
+
+      await notifyOrderStakeholders(
+        db,
+        order,
+        'Travail retourné pour corrections',
+        `Le contrôle qualité a relevé des points à corriger sur la commande ${order.reference}.`,
+        { includeClient: false, includePartner: false, includeAdmins: true, includeAssigned: true }
+      );
+
       await logAction(
         validatedBy,
         'Contrôle Qualité',
@@ -800,6 +1103,14 @@ app.post('/api/orders/:id/pay', async (req, res) => {
       order.status = type === 'deposit' ? 'EN_ATTENTE_ACOMPTE' : 'EN_ATTENTE_SOLDE';
       order.updatedAt = new Date().toISOString();
 
+      await notifyOrderStakeholders(
+        db,
+        order,
+        'Preuve de paiement soumise',
+        `Preuve de paiement de l'${type === 'deposit' ? 'acompte' : 'solde'} (${amount} DH) déposée pour ${order.reference}. En attente de validation administrative.`,
+        { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: false }
+      );
+
       await logAction(userId, userName, 'Preuve paiement', `Preuve de paiement de l'${type === 'deposit' ? 'acompte' : 'solde'} (${amount} DH) soumise pour ${order.reference}.`);
     } else if (action === 'verify_payment') {
       // Admin approves or rejects the payment
@@ -822,17 +1133,35 @@ app.post('/api/orders/:id/pay', async (req, res) => {
 
         if (paymentObj.type === 'deposit') {
           order.status = 'ACOMPTE_PAYE'; // triggers readiness for production!
-          await createNotification(db, order, 'Acompte validé', `Le paiement de l'acompte (${paymentObj.amount} DH) pour votre commande ${order.reference} a été validé. La production va démarrer.`);
+          await notifyOrderStakeholders(
+            db,
+            order,
+            'Acompte validé',
+            `Le paiement de l'acompte (${paymentObj.amount} DH) pour votre commande ${order.reference} a été validé. La production démarre.`,
+            { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: true }
+          );
         } else {
           order.status = 'SOLDE_PAYE'; // ready for delivery!
-          await createNotification(db, order, 'Solde validé', `Le paiement du solde (${paymentObj.amount} DH) pour votre commande ${order.reference} a été validé.`);
+          await notifyOrderStakeholders(
+            db,
+            order,
+            'Solde validé',
+            `Le paiement du solde (${paymentObj.amount} DH) pour votre commande ${order.reference} a été validé. Commande prête pour livraison.`,
+            { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: true }
+          );
         }
 
         await logAction(userId, userName, 'Validation paiement', `Paiement ${paymentObj.reference} de ${paymentObj.amount} DH validé pour la commande ${order.reference}.`);
       } else {
         paymentObj.status = 'rejected';
         paymentObj.notes = `Refusé par l'administrateur.`;
-        await createNotification(db, order, 'Paiement rejeté', `Le paiement de ${paymentObj.amount} DH pour votre commande ${order.reference} a été rejeté. Veuillez vérifier vos informations.`);
+        await notifyOrderStakeholders(
+          db,
+          order,
+          'Paiement rejeté',
+          `Le paiement de ${paymentObj.amount} DH pour votre commande ${order.reference} a été rejeté. Veuillez vérifier vos justificatifs.`,
+          { includeClient: true, includePartner: true, includeAdmins: true, includeAssigned: false }
+        );
         await logAction(userId, userName, 'Refus paiement', `Paiement ${paymentObj.reference} refusé pour la commande ${order.reference}.`);
       }
 

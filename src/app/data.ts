@@ -1,11 +1,13 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 
 // --- TYPES REPLICATED FROM BACKEND ---
 
 export interface User {
   id: string;
   name: string;
+  username?: string;
   email: string;
+  password?: string;
   role: 'admin' | 'partner' | 'operator' | 'qa' | 'client';
   company?: string;
   ice?: string;
@@ -47,6 +49,7 @@ export interface Service {
   unitPrice: number;
   isActive: boolean;
   options: ServiceOption[];
+  imageUrl?: string;
 }
 
 export interface OrderFile {
@@ -274,6 +277,94 @@ export interface DashboardStats {
   commissionTotal: number;
 }
 
+export const DEFAULT_SERVICES: Service[] = [
+  {
+    id: "srv-1",
+    name: "Saisie de manuscrit manuscrit vers Word",
+    category: "saisie",
+    description: "Transformation de manuscrits rédigés à la main en documents Word parfaitement formatés.",
+    priceMethod: "per_page",
+    basePrice: 0,
+    unitPriceName: "Page",
+    unitPrice: 2.00,
+    isActive: true,
+    options: [
+      { id: "opt-1-1", name: "Correction de texte avancée (+0.5 DH/Page)", price: 0.50 },
+      { id: "opt-1-2", name: "Mise en page professionnelle complexe (+0.5 DH/Page)", price: 0.50 },
+      { id: "opt-1-3", name: "Insertion de table des matières et index (+20 DH fixe)", price: 20.00 }
+    ]
+  },
+  {
+    id: "srv-2",
+    name: "Saisie de listes et tableaux Excel",
+    category: "saisie",
+    description: "Saisie, tri et classement de données manuscrites ou scannées dans des tableaux Excel complexes.",
+    priceMethod: "per_hour",
+    basePrice: 50,
+    unitPriceName: "Heure",
+    unitPrice: 80.00,
+    isActive: true,
+    options: [
+      { id: "opt-2-1", name: "Formatage conditionnel & formules de calcul (+30 DH fixe)", price: 30.00 }
+    ]
+  },
+  {
+    id: "srv-3",
+    name: "Conversion PDF vers Word/Excel avec OCR",
+    category: "conversion",
+    description: "Extraction de texte à partir de documents PDF ou scans non-éditables via un traitement OCR avancé et relecture.",
+    priceMethod: "per_page",
+    basePrice: 0,
+    unitPriceName: "Page",
+    unitPrice: 3.00,
+    isActive: true,
+    options: [
+      { id: "opt-3-1", name: "Conservation stricte de la mise en page d'origine (+1 DH/Page)", price: 1.00 }
+    ]
+  },
+  {
+    id: "srv-4",
+    name: "Mise en page Word de Mémoire/Livre",
+    category: "mise_en_forme",
+    description: "Mise aux normes académiques et éditoriales de rapports, mémoires ou livres (polices, marges, pagination, titres).",
+    priceMethod: "per_page",
+    basePrice: 50.00,
+    unitPriceName: "Page",
+    unitPrice: 1.50,
+    isActive: true,
+    options: [
+      { id: "opt-4-1", name: "Pagination et gestion des en-têtes (+15 DH fixe)", price: 15.00 },
+      { id: "opt-4-2", name: "Génération de sommaire dynamique (+10 DH fixe)", price: 10.00 }
+    ]
+  },
+  {
+    id: "srv-5",
+    name: "Correction orthographique et relecture",
+    category: "traitement",
+    description: "Relecture approfondie pour correction de l'orthographe, de la syntaxe, de la grammaire et de la ponctuation.",
+    priceMethod: "per_word",
+    basePrice: 0,
+    unitPriceName: "Mot",
+    unitPrice: 0.05,
+    isActive: true,
+    options: []
+  },
+  {
+    id: "srv-6",
+    name: "Fusion, Découpage et Indexation PDF",
+    category: "traitement",
+    description: "Regroupement de several fichiers PDF, réorganisation de l'ordre des pages et création de signets d'indexation.",
+    priceMethod: "fixed",
+    basePrice: 50.00,
+    unitPriceName: "Travail",
+    unitPrice: 0,
+    isActive: true,
+    options: [
+      { id: "opt-6-1", name: "Indexation et signets cliquables (+20 DH)", price: 20.00 }
+    ]
+  }
+];
+
 @Injectable({
   providedIn: 'root'
 })
@@ -282,7 +373,7 @@ export class Data {
   currentUser = signal<User | null>(null);
   activeRole = signal<'public' | 'client' | 'partner' | 'operator' | 'qa' | 'admin'>('public');
 
-  services = signal<Service[]>([]);
+  services = signal<Service[]>(DEFAULT_SERVICES);
   orders = signal<Order[]>([]);
   activeOrderDetails = signal<{
     order: Order;
@@ -296,6 +387,12 @@ export class Data {
   auditLogs = signal<AuditLog[]>([]);
   settings = signal<SystemSettings | null>(null);
   dashboardStats = signal<DashboardStats | null>(null);
+  notifications = signal<AppNotification[]>([]);
+  toastNotifications = signal<AppNotification[]>([]);
+  unreadNotificationsCount = computed(() => this.notifications().filter(n => !n.read).length);
+
+  private pollingTimer: ReturnType<typeof setInterval> | null = null;
+  private knownNotificationIds = new Set<string>();
 
   isLoading = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
@@ -303,6 +400,7 @@ export class Data {
 
   constructor() {
     this.initFromLocalStorage();
+    this.startPolling();
   }
 
   private initFromLocalStorage() {
@@ -327,11 +425,19 @@ export class Data {
 
   // --- API CALL HELPERS ---
 
-  private async apiCall<T>(url: string, options?: RequestInit): Promise<T> {
-    this.isLoading.set(true);
-    this.errorMessage.set(null);
+  private async apiCall<T>(url: string, options?: RequestInit, silent = false): Promise<T> {
+    if (!silent) {
+      this.isLoading.set(true);
+      this.errorMessage.set(null);
+    }
     try {
-      const res = await fetch(url, {
+      let resolvedUrl = url;
+      if (typeof window === 'undefined') {
+        if (url.startsWith('/')) {
+          resolvedUrl = `http://127.0.0.1:3000${url}`;
+        }
+      }
+      const res = await fetch(resolvedUrl, {
         headers: {
           'Content-Type': 'application/json',
           ...(options?.headers || {})
@@ -345,19 +451,24 @@ export class Data {
       return await res.json() as T;
     } catch (err) {
       const msg = (err as Error).message || 'Erreur inconnue';
-      this.errorMessage.set(msg);
+      // Only set UI error message on client-side if not silent
+      if (typeof window !== 'undefined' && !silent) {
+        this.errorMessage.set(msg);
+      }
       throw err;
     } finally {
-      this.isLoading.set(false);
+      if (!silent) {
+        this.isLoading.set(false);
+      }
     }
   }
 
   // --- CORE SERVICES ---
 
-  async login(email: string): Promise<User> {
+  async login(identifier: string, password?: string): Promise<User> {
     const res = await this.apiCall<{ user: User; token: string }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ identifier, email: identifier, username: identifier, password })
     });
     this.currentUser.set(res.user);
     this.activeRole.set(res.user.role);
@@ -372,7 +483,9 @@ export class Data {
 
   async register(formData: {
     name: string;
+    username?: string;
     email: string;
+    password?: string;
     role: 'client' | 'partner' | 'operator' | 'qa';
     phone?: string;
     city?: string;
@@ -398,32 +511,141 @@ export class Data {
   logout() {
     this.currentUser.set(null);
     this.activeRole.set('public');
+    this.notifications.set([]);
+    this.toastNotifications.set([]);
+    this.knownNotificationIds.clear();
     if (typeof window !== 'undefined') {
       localStorage.removeItem('digidocs_user');
       localStorage.removeItem('digidocs_role');
     }
   }
 
+  startPolling() {
+    if (typeof window === 'undefined') return;
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+    }
+    // Poll every 8 seconds for new notifications & order updates
+    this.pollingTimer = setInterval(() => {
+      const user = this.currentUser();
+      if (user && this.activeRole() !== 'public') {
+        this.loadNotifications(true);
+      }
+    }, 8000);
+  }
+
+  stopPolling() {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+
+  async loadNotifications(isPolling = false) {
+    const user = this.currentUser();
+    if (!user) return;
+    try {
+      // Notifications loading is always silent to avoid popup interruption
+      const list = await this.apiCall<AppNotification[]>(`/api/notifications?userId=${user.id}`, undefined, true);
+      
+      // If polling and we find brand new unread notifications that were not seen before, trigger toasts!
+      if (isPolling && this.knownNotificationIds.size > 0) {
+        const brandNew = list.filter(n => !n.read && !this.knownNotificationIds.has(n.id));
+        if (brandNew.length > 0) {
+          // Add to toast notifications
+          this.toastNotifications.update(prev => [...brandNew, ...prev].slice(0, 4));
+          
+          // Also refresh orders and dashboard stats silently in background
+          this.loadOrders(true);
+          this.loadStats(true);
+          if (this.activeOrderDetails()) {
+            const activeId = this.activeOrderDetails()!.order.id;
+            if (brandNew.some(n => n.orderId === activeId)) {
+              this.loadOrderDetails(activeId, true);
+            }
+          }
+
+          // Auto-dismiss toasts after 7 seconds
+          setTimeout(() => {
+            brandNew.forEach(bn => this.dismissToast(bn.id));
+          }, 7000);
+        }
+      }
+
+      // Update known notifications set
+      list.forEach(n => this.knownNotificationIds.add(n.id));
+      this.notifications.set(list);
+    } catch (err) {
+      // Ignore background notification polling errors silently
+      if (!isPolling) {
+        console.warn('Failed to load notifications:', err);
+      }
+    }
+  }
+
+  dismissToast(notificationId: string) {
+    this.toastNotifications.update(list => list.filter(t => t.id !== notificationId));
+  }
+
+  async markNotificationAsRead(notificationId: string) {
+    await this.apiCall<{ success: boolean }>(`/api/notifications/${notificationId}/read`, {
+      method: 'POST'
+    }, true);
+    this.notifications.update(list => list.map(n => n.id === notificationId ? { ...n, read: true } : n));
+    this.dismissToast(notificationId);
+  }
+
+  async markAllNotificationsAsRead() {
+    const user = this.currentUser();
+    if (!user) return;
+    await this.apiCall<{ success: boolean }>(`/api/notifications/read-all`, {
+      method: 'POST',
+      body: JSON.stringify({ userId: user.id })
+    }, true);
+    this.notifications.update(list => list.map(n => ({ ...n, read: true })));
+    this.toastNotifications.set([]);
+    this.successMessage.set('Toutes les notifications ont été marquées comme lues.');
+  }
+
+  async deleteNotification(notificationId: string) {
+    await this.apiCall<{ success: boolean }>(`/api/notifications/${notificationId}`, {
+      method: 'DELETE'
+    }, true);
+    this.notifications.update(list => list.filter(n => n.id !== notificationId));
+    this.dismissToast(notificationId);
+  }
+
+  async clearReadNotifications() {
+    const user = this.currentUser();
+    if (!user) return;
+    await this.apiCall<{ success: boolean }>(`/api/notifications?userId=${user.id}`, {
+      method: 'DELETE'
+    }, true);
+    this.notifications.update(list => list.filter(n => !n.read));
+    this.successMessage.set('Notifications lues supprimées.');
+  }
+
   // Load everything needed according to active role
   async loadAll() {
     try {
-      await this.loadServices();
-      await this.loadSettings();
+      await this.loadServices(true);
+      await this.loadSettings(true);
 
       const user = this.currentUser();
       const role = this.activeRole();
 
       if (role !== 'public' && user) {
-        await this.loadOrders();
-        await this.loadStats();
+        await this.loadOrders(true);
+        await this.loadStats(true);
+        await this.loadNotifications(false);
         if (role === 'admin') {
-          await this.loadAuditLogs();
+          await this.loadAuditLogs(true);
         }
         if (role === 'partner') {
-          await this.loadPartnerCustomers();
+          await this.loadPartnerCustomers(true);
         }
         if (role === 'admin' || role === 'partner' || role === 'client') {
-          await this.loadTeamUsers();
+          await this.loadTeamUsers(true);
         }
       }
     } catch (err) {
@@ -431,13 +653,13 @@ export class Data {
     }
   }
 
-  async loadTeamUsers() {
+  async loadTeamUsers(silent = false) {
     const user = this.currentUser();
     if (!user) return;
     const url = user.role === 'admin' 
       ? `/api/users?role=admin` 
       : `/api/users?createdByUserId=${user.id}`;
-    const members = await this.apiCall<User[]>(url);
+    const members = await this.apiCall<User[]>(url, undefined, silent);
     this.teamUsers.set(members);
   }
 
@@ -465,20 +687,57 @@ export class Data {
     return res.user;
   }
 
-  async loadServices() {
-    const s = await this.apiCall<Service[]>('/api/services');
-    this.services.set(s);
+  async loadServices(silent = false) {
+    try {
+      const s = await this.apiCall<Service[]>('/api/services', undefined, silent);
+      if (s && Array.isArray(s)) {
+        this.services.set(s);
+      }
+    } catch (err) {
+      if (!silent) console.warn('Could not refresh remote services:', err);
+    }
   }
 
-  async loadSettings() {
-    const s = await this.apiCall<SystemSettings>('/api/settings');
+  async saveService(serviceData: Partial<Service>) {
+    const user = this.currentUser();
+    const isEdit = !!serviceData.id;
+    const url = isEdit
+      ? `/api/services/${serviceData.id}?userId=${user?.id || ''}&userName=${encodeURIComponent(user?.name || '')}`
+      : `/api/services?userId=${user?.id || ''}&userName=${encodeURIComponent(user?.name || '')}`;
+    
+    const saved = await this.apiCall<Service>(url, {
+      method: isEdit ? 'PUT' : 'POST',
+      body: JSON.stringify(serviceData)
+    });
+
+    if (isEdit) {
+      this.services.update(list => list.map(s => s.id === saved.id ? saved : s));
+      this.successMessage.set(`Service "${saved.name}" mis à jour avec succès.`);
+    } else {
+      this.services.update(list => [...list, saved]);
+      this.successMessage.set(`Nouveau service "${saved.name}" ajouté au catalogue.`);
+    }
+    return saved;
+  }
+
+  async deleteService(serviceId: string) {
+    const user = this.currentUser();
+    await this.apiCall<{ success: boolean; id: string }>(`/api/services/${serviceId}?userId=${user?.id || ''}&userName=${encodeURIComponent(user?.name || '')}`, {
+      method: 'DELETE'
+    });
+    this.services.update(list => list.filter(s => s.id !== serviceId));
+    this.successMessage.set('Service supprimé du catalogue avec succès.');
+  }
+
+  async loadSettings(silent = false) {
+    const s = await this.apiCall<SystemSettings>('/api/settings', undefined, silent);
     this.settings.set(s);
   }
 
-  async loadPartnerCustomers() {
+  async loadPartnerCustomers(silent = false) {
     const user = this.currentUser();
     if (!user) return;
-    const c = await this.apiCall<PartnerCustomer[]>(`/api/partners/customers?partnerId=${user.id}`);
+    const c = await this.apiCall<PartnerCustomer[]>(`/api/partners/customers?partnerId=${user.id}`, undefined, silent);
     this.partnerCustomers.set(c);
   }
 
@@ -495,7 +754,7 @@ export class Data {
     return added;
   }
 
-  async loadOrders() {
+  async loadOrders(silent = false) {
     const user = this.currentUser();
     if (!user) return;
     const role = this.activeRole();
@@ -511,17 +770,17 @@ export class Data {
       queryParam = `?qaId=${user.id}`;
     }
 
-    const o = await this.apiCall<Order[]>(`/api/orders${queryParam}`);
+    const o = await this.apiCall<Order[]>(`/api/orders${queryParam}`, undefined, silent);
     this.orders.set(o);
   }
 
-  async loadOrderDetails(id: string) {
+  async loadOrderDetails(id: string, silent = false) {
     const d = await this.apiCall<{
       order: Order;
       quote?: Quote;
       invoices: Invoice[];
       payments: Payment[];
-    }>(`/api/orders/${id}`);
+    }>(`/api/orders/${id}`, undefined, silent);
     this.activeOrderDetails.set(d);
     return d;
   }
@@ -547,7 +806,8 @@ export class Data {
     });
     this.orders.update(prev => [created, ...prev]);
     this.successMessage.set(`Commande ${created.reference} soumise avec succès.`);
-    this.loadStats();
+    this.loadStats(true);
+    this.loadNotifications(true);
     return created;
   }
 
@@ -566,7 +826,8 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order: { ...prev.order, status: updated.status } } : null);
     }
     this.successMessage.set(`Statut mis à jour : ${status.replace(/_/g, ' ')}`);
-    this.loadStats();
+    this.loadStats(true);
+    this.loadNotifications(true);
   }
 
   async submitQuote(orderId: string, quoteData: Partial<Quote>) {
@@ -579,8 +840,9 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order: res.order, quote: res.quote } : null);
     }
     this.successMessage.set(`Devis ${res.quote.reference} envoyé avec succès.`);
-    this.loadOrders();
-    this.loadStats();
+    this.loadOrders(true);
+    this.loadStats(true);
+    this.loadNotifications(true);
   }
 
   async acceptRefuseQuote(orderId: string, action: 'accept' | 'refuse') {
@@ -597,9 +859,10 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order: res.order, quote: res.quote } : null);
     }
     this.successMessage.set(action === 'accept' ? 'Devis accepté ! En attente du paiement de l\'acompte.' : 'Devis refusé.');
-    this.loadOrders();
-    this.loadStats();
-    await this.loadOrderDetails(orderId); // refresh invoices/payments
+    this.loadOrders(true);
+    this.loadStats(true);
+    this.loadNotifications(true);
+    await this.loadOrderDetails(orderId, true); // refresh invoices/payments
   }
 
   async assignOperator(orderId: string, assignData: Record<string, unknown>) {
@@ -616,8 +879,9 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order } : null);
     }
     this.successMessage.set(`Commande assignée à l'opérateur.`);
-    this.loadOrders();
-    this.loadStats();
+    this.loadOrders(true);
+    this.loadStats(true);
+    this.loadNotifications(true);
   }
 
   async uploadFile(orderId: string, name: string, type: string, size: number, folder: string, base64Data: string) {
@@ -671,9 +935,10 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order } : null);
     }
     this.successMessage.set(action === 'approve' ? 'Contrôle qualité approuvé !' : 'Travail refusé et renvoyé pour corrections.');
-    this.loadOrders();
-    this.loadStats();
-    await this.loadOrderDetails(orderId);
+    this.loadOrders(true);
+    this.loadStats(true);
+    this.loadNotifications(true);
+    await this.loadOrderDetails(orderId, true);
   }
 
   async submitPaymentProof(orderId: string, payload: { amount: number; type: 'deposit' | 'balance'; method: string; proofFileName?: string; proofFileBase64?: string }) {
@@ -691,8 +956,9 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order: res.order, quote: res.quote, payments: res.payments } : null);
     }
     this.successMessage.set(`Preuve de paiement soumise. Un administrateur va la valider.`);
-    this.loadOrders();
-    this.loadStats();
+    this.loadOrders(true);
+    this.loadStats(true);
+    this.loadNotifications(true);
   }
 
   async verifyPayment(orderId: string, paymentId: string, approve: boolean) {
@@ -711,19 +977,20 @@ export class Data {
       this.activeOrderDetails.update(prev => prev ? { ...prev, order: res.order, quote: res.quote, payments: res.payments } : null);
     }
     this.successMessage.set(approve ? 'Paiement validé avec succès.' : 'Paiement refusé.');
-    this.loadOrders();
-    this.loadStats();
-    await this.loadOrderDetails(orderId);
+    this.loadOrders(true);
+    this.loadStats(true);
+    this.loadNotifications(true);
+    await this.loadOrderDetails(orderId, true);
   }
 
-  async loadStats() {
+  async loadStats(silent = false) {
     const user = this.currentUser();
-    const stats = await this.apiCall<DashboardStats>(`/api/dashboard/stats?role=${this.activeRole()}&userId=${user?.id || ''}`);
+    const stats = await this.apiCall<DashboardStats>(`/api/dashboard/stats?role=${this.activeRole()}&userId=${user?.id || ''}`, undefined, silent);
     this.dashboardStats.set(stats);
   }
 
-  async loadAuditLogs() {
-    const logs = await this.apiCall<AuditLog[]>('/api/audit-logs');
+  async loadAuditLogs(silent = false) {
+    const logs = await this.apiCall<AuditLog[]>('/api/audit-logs', undefined, silent);
     this.auditLogs.set(logs);
   }
 

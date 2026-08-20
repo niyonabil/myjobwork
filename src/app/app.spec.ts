@@ -111,14 +111,29 @@ describe('Remix Gestion de Travaux Numériques Unit Tests', () => {
     expect(app.estOptionsSelected().includes('opt-1-1')).toBe(false);
   });
 
-  it('should validate auth and order reactive forms', () => {
+  it('should validate auth and order reactive forms with username and password', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
 
     // Auth Form validation
     expect(app.authForm.valid).toBe(false);
-    app.authForm.controls['email'].setValue('boguiman@gmail.com');
+    app.authForm.patchValue({
+      identifier: 'boguiman',
+      password: 'admin'
+    });
     expect(app.authForm.valid).toBe(true);
+
+    // Test demo fill
+    app.fillDemoCredentials('admin');
+    expect(app.authForm.get('identifier')?.value).toBe('boguiman');
+    expect(app.authForm.get('password')?.value).toBe('admin123');
+
+    // Test password toggle
+    expect(app.showPassword()).toBe(false);
+    app.togglePasswordVisibility();
+    expect(app.showPassword()).toBe(true);
+    app.togglePasswordVisibility();
+    expect(app.showPassword()).toBe(false);
 
     // Order Form validation
     expect(app.orderForm.controls['serviceId'].valid).toBe(false);
@@ -188,5 +203,56 @@ describe('Remix Gestion de Travaux Numériques Unit Tests', () => {
 
     const emptyFolder = app.getFilesByFolder(mockFiles, '07_PREUVES');
     expect(emptyFolder.length).toBe(0);
+  });
+
+  it('should manage service form, options, and modal states for catalog CRUD', () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+
+    // Open new service modal
+    app.openNewServiceModal();
+    expect(app.showServiceModal()).toBe(true);
+    expect(app.editingServiceId()).toBeNull();
+    expect(app.serviceForm.get('name')?.value).toBe('');
+
+    // Add option
+    app.newOptionName.set('Reliure spirale');
+    app.newOptionPrice.set(15);
+    app.addServiceOption();
+    expect(app.serviceOptionsList().length).toBe(1);
+    expect(app.serviceOptionsList()[0].name).toBe('Reliure spirale');
+    expect(app.serviceOptionsList()[0].price).toBe(15);
+
+    // Remove option
+    const optId = app.serviceOptionsList()[0].id;
+    app.removeServiceOption(optId);
+    expect(app.serviceOptionsList().length).toBe(0);
+
+    // Open edit modal for existing service
+    const existingService = {
+      id: 'srv-edit-test',
+      name: 'Service Test Édition',
+      category: 'conversion' as const,
+      description: 'Description test',
+      priceMethod: 'per_page' as const,
+      basePrice: 10,
+      unitPriceName: 'Feuille',
+      unitPrice: 5,
+      isActive: true,
+      imageUrl: 'https://example.com/img.jpg',
+      options: [{ id: 'opt-x', name: 'Option X', price: 2 }]
+    };
+
+    app.openEditServiceModal(existingService);
+    expect(app.showServiceModal()).toBe(true);
+    expect(app.editingServiceId()).toBe('srv-edit-test');
+    expect(app.serviceForm.get('name')?.value).toBe('Service Test Édition');
+    expect(app.serviceImageBase64()).toBe('https://example.com/img.jpg');
+    expect(app.serviceOptionsList().length).toBe(1);
+
+    // Remove image
+    app.removeServiceImage();
+    expect(app.serviceImageBase64()).toBeNull();
+    expect(app.serviceForm.get('imageUrl')?.value).toBe('');
   });
 });

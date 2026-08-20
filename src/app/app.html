@@ -11,7 +11,7 @@
             {{ showAuthModal() === 'login' ? 'Connexion Plateforme' : 'Créer un Compte' }}
           </h3>
           <p class="text-xs text-slate-400 mt-1">
-            {{ showAuthModal() === 'login' ? 'Saisissez votre e-mail pour accéder à votre espace.' : 'Rejoignez DigiDocs pour gérer vos documents.' }}
+            {{ showAuthModal() === 'login' ? 'Connectez-vous avec votre nom d\'utilisateur et mot de passe.' : 'Rejoignez DigiDocs pour gérer vos documents.' }}
           </p>
         </div>
         <button (click)="showAuthModal.set(null)" class="text-slate-400 hover:text-white transition-colors">
@@ -29,8 +29,54 @@
           </div>
         }
 
-        <!-- For Register ONLY: Name field -->
+        @if (showAuthModal() === 'login') {
+          <!-- Username / Identifier Field -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nom d'utilisateur (ou E-mail) *</label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-2.5 text-slate-400 text-sm">person</span>
+              <input 
+                type="text" 
+                formControlName="identifier" 
+                placeholder="Entrez votre nom d'utilisateur" 
+                autocomplete="username"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-hidden focus:border-blue-500 focus:bg-white" 
+              />
+            </div>
+          </div>
+
+          <!-- Password Field -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Mot de passe *</label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-2.5 text-slate-400 text-sm">lock</span>
+              <input 
+                [type]="showPassword() ? 'text' : 'password'" 
+                formControlName="password" 
+                placeholder="Entrez votre mot de passe" 
+                autocomplete="current-password"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-10 py-2.5 text-sm font-medium text-slate-900 focus:outline-hidden focus:border-blue-500 focus:bg-white" 
+              />
+              <button 
+                type="button" 
+                (click)="togglePasswordVisibility()" 
+                class="absolute right-3 top-3 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                title="Afficher/Masquer le mot de passe"
+              >
+                <span class="material-icons text-sm">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-500 flex items-center gap-2">
+            <span class="material-icons text-slate-400 text-sm">info</span>
+            <span>Le profil (Administrateur, Partenaire, Opérateur, etc.) est automatiquement déterminé par votre compte.</span>
+          </div>
+        }
+
+        <!-- For Register ONLY -->
         @if (showAuthModal() === 'register') {
+          <!-- Name field -->
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nom complet *</label>
             <div class="relative">
@@ -43,24 +89,57 @@
               />
             </div>
           </div>
-        }
 
-        <!-- Email Field (For both Login and Register) -->
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Adresse E-mail *</label>
-          <div class="relative">
-            <span class="material-icons absolute left-3 top-2.5 text-slate-400 text-sm">email</span>
-            <input 
-              type="email" 
-              formControlName="email" 
-              placeholder="Ex: nabilniyo122@gmail.com" 
-              class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white" 
-            />
+          <!-- Username field -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Nom d'utilisateur (Identifiant de connexion)</label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-2.5 text-slate-400 text-sm">alternate_email</span>
+              <input 
+                type="text" 
+                formControlName="username" 
+                placeholder="Ex: nabilniyo" 
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white" 
+              />
+            </div>
           </div>
-        </div>
 
-        <!-- For Register ONLY: Role Selection -->
-        @if (showAuthModal() === 'register') {
+          <!-- Email Field -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Adresse E-mail *</label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-2.5 text-slate-400 text-sm">email</span>
+              <input 
+                type="email" 
+                formControlName="email" 
+                placeholder="Ex: nabilniyo122@gmail.com" 
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white" 
+              />
+            </div>
+          </div>
+
+          <!-- Password Field -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Mot de passe *</label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-2.5 text-slate-400 text-sm">lock</span>
+              <input 
+                [type]="showPassword() ? 'text' : 'password'" 
+                formControlName="password" 
+                placeholder="Au moins 4 caractères" 
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-10 py-2 text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white" 
+              />
+              <button 
+                type="button" 
+                (click)="togglePasswordVisibility()" 
+                class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-hidden"
+              >
+                <span class="material-icons text-sm">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Role Selection -->
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Type de profil *</label>
             <div class="grid grid-cols-2 gap-2">
@@ -162,30 +241,71 @@
      NOTIFICATIONS & TOASTS
      ========================================== -->
 @if (data.errorMessage()) {
-  <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 sticky top-[60px] z-40 shadow-md">
+  <div class="bg-red-50 border-b border-red-200 text-red-700 px-4 py-3 sticky top-0 z-50 shadow-sm">
     <div class="max-w-7xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <span class="material-icons">error_outline</span>
+        <span class="material-icons text-red-600">error_outline</span>
         <span class="text-sm font-semibold">{{ data.errorMessage() }}</span>
       </div>
-      <button (click)="data.errorMessage.set(null)" class="text-red-700 hover:text-red-900">
-        <span class="material-icons">close</span>
+      <button (click)="data.errorMessage.set(null)" class="text-red-700 hover:text-red-900 cursor-pointer">
+        <span class="material-icons text-base">close</span>
       </button>
     </div>
   </div>
 }
 
 @if (data.successMessage()) {
-  <div class="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-700 p-4 sticky top-[60px] z-40 shadow-md">
+  <div class="bg-emerald-50 border-b border-emerald-200 text-emerald-800 px-4 py-3 sticky top-0 z-50 shadow-sm">
     <div class="max-w-7xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <span class="material-icons">check_circle_outline</span>
+        <span class="material-icons text-emerald-600">check_circle_outline</span>
         <span class="text-sm font-semibold">{{ data.successMessage() }}</span>
       </div>
-      <button (click)="data.successMessage.set(null)" class="text-emerald-700 hover:text-emerald-900">
-        <span class="material-icons">close</span>
+      <button (click)="data.successMessage.set(null)" class="text-emerald-700 hover:text-emerald-900 cursor-pointer">
+        <span class="material-icons text-base">close</span>
       </button>
     </div>
+  </div>
+}
+
+<!-- Floating Real-time Toast Notifications -->
+@if (data.toastNotifications().length > 0) {
+  <div class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+    @for (toast of data.toastNotifications(); track toast.id) {
+      @let style = getNotificationIcon(toast.title, toast.message);
+      <div class="pointer-events-auto bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200/80 flex items-start gap-3.5 transform transition-all duration-300 animate-slideUp">
+        <div [class]="'w-9 h-9 rounded-xl shrink-0 flex items-center justify-center border ' + style.bg">
+          <span class="material-icons text-lg">{{ style.icon }}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between gap-1 mb-1">
+            <h4 class="text-xs font-black text-slate-900 truncate">{{ toast.title }}</h4>
+            <button 
+              type="button" 
+              (click)="data.dismissToast(toast.id)"
+              class="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+            >
+              <span class="material-icons text-sm">close</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">
+            {{ toast.message }}
+          </p>
+          <div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100">
+            <span class="text-[9px] text-slate-400 font-medium">À l'instant</span>
+            @if (toast.orderId) {
+              <button 
+                type="button" 
+                (click)="openNotificationOrder(toast); data.dismissToast(toast.id)"
+                class="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200 transition-colors"
+              >
+                Voir Commande <span class="material-icons text-[10px]">arrow_forward</span>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   </div>
 }
 
@@ -308,6 +428,94 @@
           <button (click)="showAuthModal.set('register'); authForm.patchValue({role: 'partner'})" class="text-blue-600 hover:text-blue-700 text-sm font-bold flex items-center gap-1 self-start">
             Espace Partenaire <span class="material-icons text-sm">arrow_forward</span>
           </button>
+        </div>
+      </section>
+
+      <!-- Public Services Showcase -->
+      <section id="services" class="mb-16">
+        <div class="text-center max-w-2xl mx-auto mb-10">
+          <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">Nos Solutions & Prestations</h2>
+          <p class="text-sm text-slate-600">Découvrez l'ensemble de nos services de saisie, conversion OCR, mise en page et livraison sur-mesure.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          @for (s of data.services(); track s.id) {
+            @if (s.isActive) {
+              <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md transition-all group">
+                <!-- Cover Image -->
+                <div class="relative h-44 bg-slate-100 overflow-hidden">
+                  @if (s.imageUrl) {
+                    <img 
+                      [src]="s.imageUrl" 
+                      [alt]="s.name" 
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      referrerpolicy="no-referrer"
+                    />
+                  } @else {
+                    <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50 text-blue-600">
+                      <span class="material-icons text-5xl">
+                        @if (s.category === 'saisie') { edit_note }
+                        @else if (s.category === 'conversion') { transform }
+                        @else if (s.category === 'mise_en_forme') { auto_fix_high }
+                        @else if (s.category === 'impression') { print }
+                        @else if (s.category === 'livraison') { local_shipping }
+                        @else { description }
+                      </span>
+                    </div>
+                  }
+                  <div class="absolute top-3 left-3">
+                    <span class="bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      {{ s.category }}
+                    </span>
+                  </div>
+                  <div class="absolute bottom-3 right-3">
+                    <span class="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg shadow-sm">
+                      {{ s.unitPrice }} DH / {{ s.unitPriceName }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Info -->
+                <div class="p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900 mb-2">{{ s.name }}</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed mb-4 line-clamp-3">{{ s.description }}</p>
+                    
+                    @if (s.options && s.options.length > 0) {
+                      <div class="space-y-1 mb-4">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Finitions disponibles :</p>
+                        <div class="flex flex-wrap gap-1">
+                          @for (opt of s.options; track opt.id) {
+                            <span class="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded font-medium">
+                              ✓ {{ opt.name }}
+                            </span>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <button 
+                      type="button" 
+                      (click)="estServiceId.set(s.id); showAuthModal.set('register')" 
+                      class="text-blue-600 hover:text-blue-700 font-bold text-xs flex items-center gap-1"
+                    >
+                      Commander ce service <span class="material-icons text-sm">arrow_forward</span>
+                    </button>
+
+                    <a 
+                      href="#calculator" 
+                      (click)="estServiceId.set(s.id)" 
+                      class="text-slate-400 hover:text-slate-700 text-[11px] font-medium"
+                    >
+                      Simuler devis
+                    </a>
+                  </div>
+                </div>
+              </div>
+            }
+          }
         </div>
       </section>
 
@@ -536,23 +744,157 @@
 @if (data.activeRole() !== 'public') {
   <div class="bg-slate-50 min-h-screen text-slate-800 flex flex-col">
     <!-- Inner Topbar Navigation -->
-    <header class="bg-white border-b border-slate-200 sticky top-[60px] z-30">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <span class="material-icons text-2xl text-blue-600">article</span>
-          <span class="font-black text-slate-900 tracking-tight">DigiDocs <span class="text-blue-600 font-medium">SaaS Workspace</span></span>
-          <span class="bg-slate-100 text-slate-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-md border border-slate-200">
+          <span class="font-black text-slate-900 tracking-tight text-base md:text-lg">DigiDocs <span class="text-blue-600 font-medium">SaaS Workspace</span></span>
+          <span class="bg-blue-50 text-blue-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-md border border-blue-200">
             {{ data.activeRole() }}
           </span>
         </div>
 
         <div class="flex items-center gap-3 text-sm font-semibold">
-          <span class="text-slate-600">Utilisateur :</span>
-          <span class="text-slate-900 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+          <!-- Notification Bell button with popover dropdown -->
+          <div class="relative">
+            <button 
+              type="button" 
+              (click)="toggleNotificationsDropdown()" 
+              class="relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer flex items-center justify-center"
+              title="Centre de notifications"
+              id="notification-bell-btn"
+            >
+              <span class="material-icons text-xl">notifications</span>
+              @if (data.unreadNotificationsCount() > 0) {
+                <span class="absolute -top-1 -right-1 bg-red-600 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-xs animate-bounce">
+                  {{ data.unreadNotificationsCount() > 9 ? '9+' : data.unreadNotificationsCount() }}
+                </span>
+              }
+            </button>
+
+            <!-- Notifications Dropdown Menu -->
+            @if (showNotificationsDropdown()) {
+              <!-- Backdrop -->
+              <button 
+                type="button" 
+                (click)="closeNotificationsDropdown()" 
+                class="fixed inset-0 z-40 bg-transparent border-0 w-full h-full cursor-default" 
+                aria-label="Fermer les notifications"
+              ></button>
+
+              <div class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fadeIn" id="notification-dropdown-menu">
+                <!-- Dropdown Header -->
+                <div class="bg-slate-900 text-white px-4 py-3.5 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="material-icons text-blue-400 text-lg">notifications_active</span>
+                    <h3 class="font-bold text-sm">Notifications</h3>
+                    @if (data.unreadNotificationsCount() > 0) {
+                      <span class="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                        {{ data.unreadNotificationsCount() }} non lue{{ data.unreadNotificationsCount() > 1 ? 's' : '' }}
+                      </span>
+                    }
+                  </div>
+                  @if (data.unreadNotificationsCount() > 0) {
+                    <button 
+                      type="button" 
+                      (click)="data.markAllNotificationsAsRead()" 
+                      class="text-[11px] text-blue-300 hover:text-white font-semibold cursor-pointer underline hover:no-underline"
+                    >
+                      Tout marquer lu
+                    </button>
+                  }
+                </div>
+
+                <!-- Tabs (Toutes / Non lues) -->
+                <div class="flex items-center border-b border-slate-100 bg-slate-50 px-3 pt-2 gap-2 text-xs font-bold">
+                  <button 
+                    type="button" 
+                    (click)="notificationsFilter.set('all')"
+                    [class]="notificationsFilter() === 'all' ? 'pb-2 border-b-2 border-blue-600 text-blue-600 cursor-pointer' : 'pb-2 text-slate-500 hover:text-slate-800 cursor-pointer'"
+                  >
+                    Toutes ({{ data.notifications().length }})
+                  </button>
+                  <button 
+                    type="button" 
+                    (click)="notificationsFilter.set('unread')"
+                    [class]="notificationsFilter() === 'unread' ? 'pb-2 border-b-2 border-blue-600 text-blue-600 cursor-pointer' : 'pb-2 text-slate-500 hover:text-slate-800 cursor-pointer'"
+                  >
+                    Non lues ({{ data.unreadNotificationsCount() }})
+                  </button>
+                </div>
+
+                <!-- Notifications List -->
+                <div class="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                  @if (filteredNotifications().length === 0) {
+                    <div class="p-8 text-center text-slate-400">
+                      <span class="material-icons text-3xl mb-2 text-slate-300">notifications_off</span>
+                      <p class="text-xs font-semibold">Aucune notification à afficher.</p>
+                      <p class="text-[10px] text-slate-400 mt-1">Vous serez alerté en direct des nouvelles commandes et changements de statuts.</p>
+                    </div>
+                  } @else {
+                    @for (item of filteredNotifications(); track item.id) {
+                      @let style = getNotificationIcon(item.title, item.message);
+                      <button 
+                        type="button"
+                        (click)="openNotificationOrder(item)"
+                        [class]="'w-full text-left p-3.5 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-3 border-0 ' + (!item.read ? 'bg-blue-50/40' : 'bg-transparent')"
+                      >
+                        <div [class]="'w-8 h-8 rounded-xl shrink-0 flex items-center justify-center border ' + style.bg">
+                          <span class="material-icons text-base">{{ style.icon }}</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center justify-between gap-1 mb-0.5">
+                            <h4 [class]="'text-xs font-bold truncate ' + (!item.read ? 'text-slate-900' : 'text-slate-700')">
+                              {{ item.title }}
+                            </h4>
+                            <span class="text-[10px] text-slate-400 shrink-0 font-medium">
+                              {{ formatRelativeTime(item.createdAt) }}
+                            </span>
+                          </div>
+                          <p class="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+                            {{ item.message }}
+                          </p>
+                          <div class="flex items-center gap-2 mt-1.5">
+                            @if (item.orderId) {
+                              <span class="inline-flex items-center gap-1 text-[9px] font-mono font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                <span class="material-icons text-[10px]">receipt</span> #{{ item.orderId }}
+                              </span>
+                            }
+                            @if (!item.read) {
+                              <span class="inline-block w-2 h-2 rounded-full bg-blue-600"></span>
+                              <span class="text-[9px] text-blue-700 font-semibold">Nouveau</span>
+                            }
+                          </div>
+                        </div>
+                      </button>
+                    }
+                  }
+                </div>
+
+                <!-- Dropdown Footer -->
+                <div class="bg-slate-50 p-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <button 
+                    type="button" 
+                    (click)="activeTab.set('notifications'); closeNotificationsDropdown()"
+                    class="text-blue-600 hover:text-blue-800 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    Voir l'historique complet <span class="material-icons text-xs">arrow_forward</span>
+                  </button>
+                  <span class="text-[10px] text-slate-400 flex items-center gap-1">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span> En direct
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <span class="text-slate-500 text-xs hidden sm:inline">Connecté :</span>
+          <span class="text-slate-900 font-bold bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 text-xs flex items-center gap-1.5">
+            <span class="material-icons text-xs text-slate-500">person</span>
             {{ data.currentUser()?.name || 'Administrateur' }}
           </span>
-          <button (click)="data.logout()" class="text-red-500 hover:text-red-700 flex items-center gap-0.5 text-xs font-bold">
-            <span class="material-icons text-sm">logout</span> Déconnexion
+          <button (click)="data.logout()" class="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 px-3 py-1 rounded-lg border border-red-200 flex items-center gap-1 text-xs font-bold transition-all active:scale-95 cursor-pointer">
+            <span class="material-icons text-xs">logout</span> Déconnexion
           </button>
         </div>
       </div>
@@ -585,8 +927,8 @@
             }
           </button>
 
-          <!-- Nouvelle commande (Client or Partner only) -->
-          @if (data.activeRole() === 'client' || data.activeRole() === 'partner') {
+          <!-- Nouvelle commande (Client, Partner, Admin) -->
+          @if (data.activeRole() === 'client' || data.activeRole() === 'partner' || data.activeRole() === 'admin') {
             <button 
               (click)="activeTab.set('new_order')"
               [class]="activeTab() === 'new_order' ? 'w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-50 text-blue-700 flex items-center gap-2 border border-blue-100' : 'w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 flex items-center gap-2'"
@@ -595,13 +937,13 @@
             </button>
           }
 
-          <!-- B2B Partner Customers management -->
-          @if (data.activeRole() === 'partner') {
+          <!-- B2B Partner Customers management (Partner and Admin) -->
+          @if (data.activeRole() === 'partner' || data.activeRole() === 'admin') {
             <button 
               (click)="activeTab.set('clients')"
               [class]="activeTab() === 'clients' ? 'w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-50 text-blue-700 flex items-center gap-2 border border-blue-100' : 'w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 flex items-center gap-2'"
             >
-              <span class="material-icons text-sm">people_outline</span> Mes Clients B2C
+              <span class="material-icons text-sm">people_outline</span> @if (data.activeRole() === 'admin') { Tous les Clients } @else { Mes Clients B2C }
               @if (data.partnerCustomers().length > 0) {
                 <span class="ml-auto bg-slate-200 text-slate-800 text-[10px] px-2 py-0.5 rounded-full font-black">{{ data.partnerCustomers().length }}</span>
               }
@@ -620,6 +962,18 @@
               }
             </button>
           }
+
+          <!-- Notifications tab button -->
+          <button 
+            (click)="activeTab.set('notifications'); selectedOrderId.set(null)"
+            [class]="activeTab() === 'notifications' ? 'w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-50 text-blue-700 flex items-center gap-2 border border-blue-100' : 'w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 flex items-center gap-2'"
+            id="sidebar-notifications-btn"
+          >
+            <span class="material-icons text-sm">notifications</span> Notifications
+            @if (data.unreadNotificationsCount() > 0) {
+              <span class="ml-auto bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">{{ data.unreadNotificationsCount() }}</span>
+            }
+          </button>
 
           <!-- Admin exclusive options -->
           @if (data.activeRole() === 'admin') {
@@ -1975,45 +2329,201 @@
 
         <!-- H. SERVICES CATALOG (ADMIN EXCLUSIVE) -->
         @if (activeTab() === 'services' && data.activeRole() === 'admin') {
-          <div class="space-y-6 animate-fadeIn">
-            <div class="border-b border-slate-200 pb-3">
-              <h2 class="text-2xl font-black text-slate-900 tracking-tight">Catalogue des Services Professionnels</h2>
-              <p class="text-sm text-slate-500">Gérer les types de travaux documentaires et tarifs de calcul.</p>
+          <div class="space-y-6 animate-fadeIn" id="services-management-section">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4 gap-4">
+              <div>
+                <h2 class="text-2xl font-black text-slate-900 tracking-tight" id="services-title">Catalogue des Services & Tarifs</h2>
+                <p class="text-xs text-slate-500">Ajoutez, modifiez, illustrez et gérez les services proposés sur la plateforme.</p>
+              </div>
+
+              <button 
+                id="btn-add-new-service"
+                (click)="openNewServiceModal()"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer self-start sm:self-auto"
+              >
+                <span class="material-icons text-sm">add_circle</span> Ajouter un Nouveau Service
+              </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              @for (srv of data.services(); track srv.id) {
-                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-                      <span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-100 uppercase">
-                        {{ srv.category }}
-                      </span>
-                      <span class="font-black text-slate-950 text-sm">Tarif: {{ srv.unitPrice }} DH / {{ srv.unitPriceName }}</span>
-                    </div>
-                    <h3 class="font-bold text-slate-900 text-base mb-1">{{ srv.name }}</h3>
-                    <p class="text-xs text-slate-500 leading-normal mb-4">{{ srv.description }}</p>
+            <!-- Filters and search -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+              <!-- Category Filter Buttons -->
+              <div class="flex items-center gap-1.5 flex-wrap w-full md:w-auto">
+                <button 
+                  (click)="activeCategoryFilter.set('all')"
+                  [class]="activeCategoryFilter() === 'all' ? 'bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Tous ({{ data.services().length }})
+                </button>
+                <button 
+                  (click)="activeCategoryFilter.set('saisie')"
+                  [class]="activeCategoryFilter() === 'saisie' ? 'bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Saisie
+                </button>
+                <button 
+                  (click)="activeCategoryFilter.set('conversion')"
+                  [class]="activeCategoryFilter() === 'conversion' ? 'bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Conversion & OCR
+                </button>
+                <button 
+                  (click)="activeCategoryFilter.set('mise_en_forme')"
+                  [class]="activeCategoryFilter() === 'mise_en_forme' ? 'bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Mise en page
+                </button>
+                <button 
+                  (click)="activeCategoryFilter.set('traitement')"
+                  [class]="activeCategoryFilter() === 'traitement' ? 'bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Traitement
+                </button>
+                <button 
+                  (click)="activeCategoryFilter.set('impression')"
+                  [class]="activeCategoryFilter() === 'impression' ? 'bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Impression
+                </button>
+                <button 
+                  (click)="activeCategoryFilter.set('livraison')"
+                  [class]="activeCategoryFilter() === 'livraison' ? 'bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg'"
+                >
+                  Livraison
+                </button>
+              </div>
 
-                    <!-- Options list -->
-                    @if (srv.options.length > 0) {
-                      <div class="space-y-1.5 mb-4">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase">Options de finition :</p>
-                        @for (opt of srv.options; track opt.id) {
-                          <p class="text-xs text-slate-700 font-medium pl-2">✓ {{ opt.name }}</p>
+              <!-- Search -->
+              <div class="relative w-full md:w-64">
+                <span class="material-icons absolute left-3 top-2 text-slate-400 text-sm">search</span>
+                <input 
+                  type="text"
+                  placeholder="Rechercher un service..."
+                  [value]="searchQuery()"
+                  (input)="searchQuery.set($any($event.target).value)"
+                  class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <!-- Services Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              @for (srv of data.services(); track srv.id) {
+                @if ((activeCategoryFilter() === 'all' || srv.category === activeCategoryFilter()) && (!searchQuery() || srv.name.toLowerCase().includes(searchQuery().toLowerCase()) || srv.description.toLowerCase().includes(searchQuery().toLowerCase()))) {
+                  <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
+                    
+                    <!-- Service Image or Cover Placeholder -->
+                    <div class="relative h-40 bg-slate-100 overflow-hidden group">
+                      @if (srv.imageUrl) {
+                        <img 
+                          [src]="srv.imageUrl" 
+                          [alt]="srv.name" 
+                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          referrerpolicy="no-referrer"
+                        />
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+                          <span class="material-icons text-5xl">
+                            @if (srv.category === 'saisie') { edit_note }
+                            @else if (srv.category === 'conversion') { transform }
+                            @else if (srv.category === 'mise_en_forme') { auto_fix_high }
+                            @else if (srv.category === 'impression') { print }
+                            @else if (srv.category === 'livraison') { local_shipping }
+                            @else { description }
+                          </span>
+                          <span class="text-[10px] uppercase font-bold tracking-wider mt-1 text-slate-400">Image par défaut</span>
+                        </div>
+                      }
+
+                      <!-- Category & Active Badges on Top of Image -->
+                      <div class="absolute top-3 left-3 flex items-center gap-1.5">
+                        <span class="bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                          {{ srv.category }}
+                        </span>
+                      </div>
+
+                      <div class="absolute top-3 right-3">
+                        <button 
+                          type="button"
+                          (click)="toggleServiceActive(srv)"
+                          [title]="srv.isActive ? 'Désactiver le service' : 'Activer le service'"
+                          [class]="srv.isActive ? 'bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1' : 'bg-slate-600/90 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1'"
+                        >
+                          <span class="w-1.5 h-1.5 rounded-full" [class]="srv.isActive ? 'bg-emerald-300' : 'bg-slate-400'"></span>
+                          {{ srv.isActive ? 'Actif' : 'Inactif' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Content Body -->
+                    <div class="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <!-- Header with Price -->
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                          <h3 class="font-bold text-slate-900 text-base leading-snug">{{ srv.name }}</h3>
+                          <div class="text-right shrink-0">
+                            <span class="font-black text-blue-600 text-sm whitespace-nowrap">{{ srv.unitPrice }} DH</span>
+                            <span class="text-[10px] text-slate-400 block font-medium">/ {{ srv.unitPriceName }}</span>
+                          </div>
+                        </div>
+
+                        <p class="text-xs text-slate-500 line-clamp-3 mb-4 leading-relaxed">{{ srv.description }}</p>
+
+                        <!-- Extra details: base price & method -->
+                        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-4 text-[11px] space-y-1 text-slate-600">
+                          <div class="flex items-center justify-between">
+                            <span class="text-slate-400 font-medium">Méthode de calcul :</span>
+                            <span class="font-bold text-slate-700 capitalize">{{ srv.priceMethod.replace('_', ' ') }}</span>
+                          </div>
+                          @if (srv.basePrice > 0) {
+                            <div class="flex items-center justify-between">
+                              <span class="text-slate-400 font-medium">Frais fixes / Base :</span>
+                              <span class="font-bold text-slate-700">{{ srv.basePrice }} DH</span>
+                            </div>
+                          }
+                        </div>
+
+                        <!-- Options List -->
+                        @if (srv.options && srv.options.length > 0) {
+                          <div class="space-y-1 mb-4">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Options incluses / finitions ({{ srv.options.length }}) :</p>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                              @for (opt of srv.options; track opt.id) {
+                                <span class="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
+                                  <span>{{ opt.name }}</span>
+                                  @if (opt.price > 0) {
+                                    <span class="font-bold text-blue-900">+{{ opt.price }} DH</span>
+                                  }
+                                </span>
+                              }
+                            </div>
+                          </div>
                         }
                       </div>
-                    }
-                  </div>
 
-                  <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
-                    <button 
-                      (click)="data.successMessage.set('L\'édition du service est indisponible en mode démo.')"
-                      class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold"
-                    >
-                      Éditer Tarifs
-                    </button>
+                      <!-- Action Buttons -->
+                      <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 mt-2">
+                        <button 
+                          type="button"
+                          (click)="handleDeleteService(srv)"
+                          title="Supprimer définitivement ce service"
+                          class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <span class="material-icons text-xs">delete</span> Supprimer
+                        </button>
+
+                        <button 
+                          type="button"
+                          (click)="openEditServiceModal(srv)"
+                          class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <span class="material-icons text-xs">edit</span> Modifier
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
-                </div>
+                }
               }
             </div>
           </div>
@@ -2190,6 +2700,151 @@
             </div>
           </div>
         }
+
+        <!-- I. NOTIFICATIONS FULL HISTORY VIEW -->
+        @if (activeTab() === 'notifications') {
+          <div class="space-y-6 animate-fadeIn" id="notifications-full-view">
+            <!-- Header -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="material-icons text-blue-600 text-2xl">notifications_active</span>
+                  <h2 class="text-xl font-black text-slate-900 tracking-tight">Centre de Notifications & Alertes</h2>
+                  @if (data.unreadNotificationsCount() > 0) {
+                    <span class="bg-red-500 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full animate-pulse">
+                      {{ data.unreadNotificationsCount() }} non lue{{ data.unreadNotificationsCount() > 1 ? 's' : '' }}
+                    </span>
+                  }
+                </div>
+                <p class="text-xs text-slate-500">
+                  Alertes en direct lors des créations de commandes, changements de statut, validations qualité et paiements.
+                </p>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex items-center gap-3">
+                @if (data.unreadNotificationsCount() > 0) {
+                  <button 
+                    type="button" 
+                    (click)="data.markAllNotificationsAsRead()"
+                    class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-blue-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span class="material-icons text-sm">done_all</span>
+                    Tout marquer comme lu
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Filters Bar -->
+            <div class="flex items-center justify-between gap-4">
+              <div class="inline-flex bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                <button 
+                  type="button" 
+                  (click)="notificationsFilter.set('all')"
+                  [class]="notificationsFilter() === 'all' ? 'px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white transition-all shadow-xs' : 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors'"
+                >
+                  Toutes ({{ data.notifications().length }})
+                </button>
+                <button 
+                  type="button" 
+                  (click)="notificationsFilter.set('unread')"
+                  [class]="notificationsFilter() === 'unread' ? 'px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white transition-all shadow-xs' : 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors'"
+                >
+                  Non lues ({{ data.unreadNotificationsCount() }})
+                </button>
+              </div>
+
+              <span class="text-xs text-slate-400 font-medium hidden sm:inline">
+                Synchronisation automatique toutes les 8s
+              </span>
+            </div>
+
+            <!-- Notifications List Cards -->
+            <div class="space-y-3">
+              @if (filteredNotifications().length === 0) {
+                <div class="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-xs">
+                  <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-4">
+                    <span class="material-icons text-3xl">notifications_off</span>
+                  </div>
+                  <h3 class="text-base font-bold text-slate-800 mb-1">Aucune notification pour l'instant</h3>
+                  <p class="text-xs text-slate-500 max-w-md mx-auto">
+                    Toutes les actions clés (nouvelle commande créée par un client, passage en production, validation QA ou paiement d'acompte) apparaîtront ici en temps réel.
+                  </p>
+                </div>
+              } @else {
+                @for (item of filteredNotifications(); track item.id) {
+                  @let style = getNotificationIcon(item.title, item.message);
+                  <div 
+                    [class]="'bg-white rounded-2xl p-5 border transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs ' + (!item.read ? 'border-blue-300 ring-2 ring-blue-500/10 bg-blue-50/20' : 'border-slate-200')"
+                  >
+                    <div class="flex items-start gap-4 flex-1 min-w-0">
+                      <div [class]="'w-11 h-11 rounded-2xl shrink-0 flex items-center justify-center border shadow-2xs ' + style.bg">
+                        <span class="material-icons text-xl">{{ style.icon }}</span>
+                      </div>
+                      
+                      <div class="flex-1 min-w-0">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                          <h4 [class]="'text-sm font-black ' + (!item.read ? 'text-slate-900' : 'text-slate-700')">
+                            {{ item.title }}
+                          </h4>
+                          @if (!item.read) {
+                            <span class="bg-blue-600 text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full">
+                              Nouveau
+                            </span>
+                          }
+                          @if (item.orderId) {
+                            <span class="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md">
+                              Réf: {{ item.orderId }}
+                            </span>
+                          }
+                        </div>
+
+                        <p class="text-xs text-slate-600 leading-relaxed mb-2">
+                          {{ item.message }}
+                        </p>
+
+                        <div class="flex items-center gap-3 text-[11px] text-slate-400 font-medium">
+                          <span class="flex items-center gap-1">
+                            <span class="material-icons text-xs">schedule</span>
+                            {{ formatRelativeTime(item.createdAt) }}
+                          </span>
+                          <span>•</span>
+                          <span>{{ item.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Actions Buttons -->
+                    <div class="flex items-center gap-2 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
+                      @if (!item.read) {
+                        <button 
+                          type="button" 
+                          (click)="data.markNotificationAsRead(item.id)"
+                          class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                          title="Marquer comme lu"
+                        >
+                          <span class="material-icons text-base">check</span>
+                        </button>
+                      }
+
+                      @if (item.orderId) {
+                        <button 
+                          type="button" 
+                          (click)="openNotificationOrder(item)"
+                          class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        >
+                          Consulter la commande
+                          <span class="material-icons text-sm">arrow_forward</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        }
       </main>
     </div>
   </div>
@@ -2283,6 +2938,346 @@
           </button>
         </div>
       </div>
+    </div>
+  }
+
+  <!-- MODAL: GESTION / ÉDITION SERVICE DU CATALOGUE -->
+  @if (showServiceModal()) {
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto" id="service-editor-modal">
+      <div class="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl shadow-2xl overflow-hidden my-8 animate-fadeIn flex flex-col max-h-[90vh]">
+        
+        <!-- Header -->
+        <div class="bg-slate-50 border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+              <span class="material-icons text-base">design_services</span>
+            </div>
+            <div>
+              <h4 class="font-black text-slate-900 text-base" id="service-modal-title">
+                @if (editingServiceId()) {
+                  Modifier le Service
+                } @else {
+                  Ajouter un Nouveau Service au Catalogue
+                }
+              </h4>
+              <p class="text-xs text-slate-400">Définissez les caractéristiques, visuels, tarifs et options de calcul.</p>
+            </div>
+          </div>
+          <button (click)="showServiceModal.set(false)" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+
+        <!-- Scrollable Form Body -->
+        <div class="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+          <form [formGroup]="serviceForm" (ngSubmit)="handleSaveService()" id="service-edit-form" class="space-y-6">
+            
+            <!-- SECTION 1: VISUEL & ILLUSTRATION -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                Illustration / Image du Service
+              </label>
+              
+              <div class="flex flex-col sm:flex-row items-center gap-4">
+                <!-- Preview -->
+                <div class="w-32 h-24 rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden flex items-center justify-center shrink-0 relative group">
+                  @if (serviceImageBase64() || serviceForm.get('imageUrl')?.value) {
+                    <img 
+                      [src]="serviceImageBase64() || serviceForm.get('imageUrl')?.value" 
+                      alt="Aperçu" 
+                      class="w-full h-full object-cover"
+                      referrerpolicy="no-referrer"
+                    />
+                    <button 
+                      type="button" 
+                      (click)="removeServiceImage()" 
+                      class="absolute inset-0 bg-slate-900/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity font-bold text-[10px]"
+                    >
+                      <span class="material-icons text-sm mr-1">delete</span> Retirer
+                    </button>
+                  } @else {
+                    <div class="flex flex-col items-center text-slate-400">
+                      <span class="material-icons text-2xl">add_photo_alternate</span>
+                      <span class="text-[9px] mt-1">Aucune image</span>
+                    </div>
+                  }
+                </div>
+
+                <!-- Inputs -->
+                <div class="flex-1 space-y-2 w-full">
+                  <div>
+                    <span class="text-[10px] font-bold text-slate-500 block mb-1">Téléverser un fichier image (JPG, PNG, WebP) :</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      (change)="onServiceImageSelected($event)" 
+                      class="text-xs text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <span class="text-[10px] font-bold text-slate-500 block mb-1">Ou saisir une URL directe :</span>
+                    <input 
+                      type="url" 
+                      formControlName="imageUrl" 
+                      placeholder="https://images.unsplash.com/..." 
+                      class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 2: IDENTITÉ & DESCRIPTION -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label class="block font-bold text-slate-700 mb-1">Nom du service *</label>
+                <input 
+                  type="text" 
+                  formControlName="name" 
+                  placeholder="Ex: Saisie de manuscrits arabes & français" 
+                  class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-medium"
+                />
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Catégorie métier *</label>
+                <select 
+                  formControlName="category" 
+                  class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-medium"
+                >
+                  <option value="saisie">Saisie de données & transcription</option>
+                  <option value="conversion">Numérisation, OCR & Conversion</option>
+                  <option value="mise_en_forme">Mise en forme & PAO avancée</option>
+                  <option value="traitement">Traitement & Nettoyage de données</option>
+                  <option value="impression">Impression papier & reliure</option>
+                  <option value="livraison">Expédition & Livraison physique</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Méthode de facturation *</label>
+                <select 
+                  formControlName="priceMethod" 
+                  class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-medium"
+                >
+                  <option value="per_page">Par Page (ex: 2 DH / page)</option>
+                  <option value="per_word">Par Mot (ex: 0.05 DH / mot)</option>
+                  <option value="per_hour">Par Heure (ex: 45 DH / heure)</option>
+                  <option value="fixed">Forfait Fixe par travail</option>
+                  <option value="hybrid">Hybride (Base fixe + Prix unitaire)</option>
+                </select>
+              </div>
+
+              <div class="sm:col-span-2">
+                <label class="block font-bold text-slate-700 mb-1">Description détaillée du service *</label>
+                <textarea 
+                  formControlName="description" 
+                  rows="3" 
+                  placeholder="Décrivez précisément les prestations incluses, la méthodologie et les garanties de qualité..." 
+                  class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                ></textarea>
+              </div>
+            </div>
+
+            <!-- SECTION 3: GRILLE TARIFAIRE -->
+            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4">
+              <label class="block font-bold text-blue-900 uppercase tracking-wider text-[11px]">
+                Paramètres Tarifaires (MAD / DH)
+              </label>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label class="block font-bold text-slate-600 mb-1">Nom de l'unité</label>
+                  <input 
+                    type="text" 
+                    formControlName="unitPriceName" 
+                    placeholder="Ex: Page, Mot, Heure, Dossier" 
+                    class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 mb-1">Prix Unitaire (DH) *</label>
+                  <input 
+                    type="number" 
+                    step="0.1" 
+                    min="0" 
+                    formControlName="unitPrice" 
+                    class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 mb-1">Frais de base fixes (DH)</label>
+                  <input 
+                    type="number" 
+                    step="1" 
+                    min="0" 
+                    formControlName="basePrice" 
+                    class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 pt-2">
+                <input 
+                  type="checkbox" 
+                  id="srv-active-toggle" 
+                  formControlName="isActive" 
+                  class="accent-blue-600 h-4 w-4"
+                />
+                <label for="srv-active-toggle" class="font-bold text-slate-700 cursor-pointer">
+                  Service actif et disponible dans le catalogue pour les clients
+                </label>
+              </div>
+            </div>
+
+            <!-- SECTION 4: OPTIONS DE FINITION ADDITIONNELLES -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                Options & Finitions Configurables
+              </label>
+
+              <!-- List of existing options -->
+              @if (serviceOptionsList().length > 0) {
+                <div class="space-y-2">
+                  @for (opt of serviceOptionsList(); track opt.id) {
+                    <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200">
+                      <div class="flex items-center gap-2">
+                        <span class="material-icons text-blue-600 text-sm">check_circle</span>
+                        <span class="font-bold text-slate-800">{{ opt.name }}</span>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <span class="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded text-[11px]">
+                          +{{ opt.price }} DH
+                        </span>
+                        <button 
+                          type="button" 
+                          (click)="removeServiceOption(opt.id)" 
+                          class="text-red-500 hover:text-red-700 cursor-pointer p-1"
+                          title="Supprimer cette option"
+                        >
+                          <span class="material-icons text-sm">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="text-slate-400 italic text-[11px]">Aucune option spécifique configurée pour ce service.</p>
+              }
+
+              <!-- Add option row -->
+              <div class="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-200/60">
+                <input 
+                  type="text" 
+                  [value]="newOptionName()" 
+                  (input)="newOptionName.set($any($event.target).value)" 
+                  placeholder="Intitulé de l'option (ex: Relecture orthographique)" 
+                  class="flex-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="1" 
+                    [value]="newOptionPrice()" 
+                    (input)="newOptionPrice.set(+$any($event.target).value || 0)" 
+                    placeholder="Prix DH" 
+                    class="w-24 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <span class="text-slate-400 font-bold text-[10px]">DH</span>
+                  <button 
+                    type="button" 
+                    (click)="addServiceOption()" 
+                    class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <span class="material-icons text-xs">add</span> Ajouter
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="bg-slate-50 border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
+          <button 
+            type="button" 
+            (click)="showServiceModal.set(false)" 
+            class="text-xs text-slate-500 hover:underline font-bold px-4 py-2 cursor-pointer"
+          >
+            Annuler
+          </button>
+          
+          <button 
+            type="button" 
+            (click)="handleSaveService()" 
+            [disabled]="data.isLoading()"
+            class="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+          >
+            @if (data.isLoading()) {
+              <span class="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"></span>
+              Enregistrement...
+            } @else {
+              <span class="material-icons text-sm">save</span> Enregistrer le Service
+            }
+          </button>
+        </div>
+
+      </div>
+    </div>
+  }
+
+  <!-- FLOATING REAL-TIME TOAST NOTIFICATIONS STACK -->
+  @if (data.toastNotifications().length > 0) {
+    <div class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none" id="toast-notifications-stack">
+      @for (toast of data.toastNotifications(); track toast.id) {
+        @let style = getNotificationIcon(toast.title, toast.message);
+        <div 
+          class="pointer-events-auto bg-slate-900 text-white rounded-2xl p-4 shadow-2xl border border-slate-700/80 flex items-start gap-3 animate-slideIn transition-all"
+        >
+          <div [class]="'w-9 h-9 rounded-xl shrink-0 flex items-center justify-center border shadow-xs ' + style.bg">
+            <span class="material-icons text-lg">{{ style.icon }}</span>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <h5 class="text-xs font-bold text-white truncate">{{ toast.title }}</h5>
+              <button 
+                type="button" 
+                (click)="data.dismissToast(toast.id)"
+                class="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <span class="material-icons text-sm">close</span>
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-300 line-clamp-2 leading-relaxed mb-2">
+              {{ toast.message }}
+            </p>
+            <div class="flex items-center gap-2">
+              @if (toast.orderId) {
+                <button 
+                  type="button" 
+                  (click)="openNotificationOrder(toast)"
+                  class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  Voir #{{ toast.orderId }}
+                  <span class="material-icons text-[10px]">arrow_forward</span>
+                </button>
+              }
+              <button 
+                type="button" 
+                (click)="data.markNotificationAsRead(toast.id)"
+                class="text-[10px] text-slate-400 hover:text-slate-200 font-semibold cursor-pointer underline"
+              >
+                Marquer lu
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   }
 }

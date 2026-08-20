@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
-import { Data, Service, Order, PartnerCustomer, OrderFile, Quote } from './data';
+import { Data, Service, Order, PartnerCustomer, OrderFile, Quote, AppNotification } from './data';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,6 +17,38 @@ export class App {
   activeTab = signal<string>('dashboard'); // e.g. dashboard, orders, new_order, services, clients, reports, settings, audit_logs
   selectedOrderId = signal<string | null>(null);
 
+  // --- NOTIFICATIONS UI STATE ---
+  showNotificationsDropdown = signal<boolean>(false);
+  notificationsFilter = signal<'all' | 'unread'>('all');
+  notificationsTypeFilter = signal<string>('all');
+  notificationsSearchQuery = signal<string>('');
+  
+  filteredNotifications = computed(() => {
+    let list = this.data.notifications();
+    if (this.notificationsFilter() === 'unread') {
+      list = list.filter(n => !n.read);
+    }
+    const type = this.notificationsTypeFilter();
+    if (type !== 'all') {
+      list = list.filter(n => {
+        const text = (n.title + ' ' + n.message).toLowerCase();
+        if (type === 'orders') return text.includes('commande') || text.includes('créée');
+        if (type === 'payments') return text.includes('devis') || text.includes('acompte') || text.includes('solde') || text.includes('paiement');
+        if (type === 'qa') return text.includes('qualité') || text.includes('tâche') || text.includes('assign') || text.includes('validé');
+        return true;
+      });
+    }
+    const q = this.notificationsSearchQuery().toLowerCase().trim();
+    if (q) {
+      list = list.filter(n => 
+        n.title.toLowerCase().includes(q) || 
+        n.message.toLowerCase().includes(q) || 
+        (n.orderId && n.orderId.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  });
+
   // --- REACTIVE FORMS ---
   orderForm!: FormGroup;
   customerForm!: FormGroup;
@@ -25,8 +57,18 @@ export class App {
   paymentForm!: FormGroup;
   authForm!: FormGroup;
   teamUserForm!: FormGroup;
+  serviceForm!: FormGroup;
 
   showAuthModal = signal<'login' | 'register' | null>(null);
+  showPassword = signal<boolean>(false);
+
+  // --- SERVICE CATALOG MANAGEMENT STATE ---
+  showServiceModal = signal<boolean>(false);
+  editingServiceId = signal<string | null>(null);
+  serviceImageBase64 = signal<string | null>(null);
+  serviceOptionsList = signal<{ id: string; name: string; price: number }[]>([]);
+  newOptionName = signal<string>('');
+  newOptionPrice = signal<number>(0);
 
   // --- LOCAL COMPONENT STATES ---
   activeCategoryFilter = signal<string>('all');
@@ -77,12 +119,14 @@ export class App {
 
   constructor() {
     this.initForms();
-    this.data.loadAll();
+    if (typeof window !== 'undefined') {
+      this.data.loadAll();
+    }
 
     // Effect to auto-load order details if selectedOrderId changes
     effect(() => {
       const orderId = this.selectedOrderId();
-      if (orderId) {
+      if (orderId && typeof window !== 'undefined') {
         this.data.loadOrderDetails(orderId);
       }
     });
@@ -157,8 +201,11 @@ export class App {
     });
 
     this.authForm = new FormGroup({
+      identifier: new FormControl('', Validators.required),
+      username: new FormControl(''),
+      email: new FormControl('', [Validators.email]),
+      password: new FormControl('', [Validators.required, Validators.minLength(4)]),
       name: new FormControl(''),
-      email: new FormControl('', [Validators.required, Validators.email]),
       role: new FormControl('client', Validators.required),
       phone: new FormControl(''),
       city: new FormControl('Casablanca'),
@@ -169,11 +216,25 @@ export class App {
 
     this.teamUserForm = new FormGroup({
       name: new FormControl('', Validators.required),
+      username: new FormControl(''),
       email: new FormControl('', [Validators.required, Validators.email]),
+      password: new FormControl('123456', [Validators.required, Validators.minLength(4)]),
       role: new FormControl('operator', Validators.required),
       phone: new FormControl(''),
       city: new FormControl('Casablanca'),
       address: new FormControl(''),
+    });
+
+    this.serviceForm = new FormGroup({
+      name: new FormControl('', Validators.required),
+      category: new FormControl('saisie', Validators.required),
+      description: new FormControl('', Validators.required),
+      priceMethod: new FormControl('per_page', Validators.required),
+      basePrice: new FormControl(0, [Validators.required, Validators.min(0)]),
+      unitPriceName: new FormControl('Page', Validators.required),
+      unitPrice: new FormControl(2.0, [Validators.required, Validators.min(0)]),
+      isActive: new FormControl(true),
+      imageUrl: new FormControl(''),
     });
   }
 
@@ -793,34 +854,79 @@ export class App {
     }
   }
 
+  togglePasswordVisibility() {
+    this.showPassword.update(v => !v);
+  }
+
+  fillDemoCredentials(role: 'admin' | 'partner' | 'operator' | 'qa' | 'client') {
+    const creds: Record<string, { identifier: string; password: string; name: string }> = {
+      admin: { identifier: 'boguiman', password: 'admin123', name: 'Administrateur Principal' },
+      partner: { identifier: 'partenaire', password: 'partner123', name: 'Partenaire Librairie' },
+      operator: { identifier: 'operateur', password: 'operator123', name: 'Opérateur Saisie' },
+      qa: { identifier: 'qa', password: 'qa123', name: 'Contrôle Qualité' },
+      client: { identifier: 'client', password: 'client123', name: 'Client Final' },
+    };
+
+    const c = creds[role];
+    if (c) {
+      this.authForm.patchValue({
+        identifier: c.identifier,
+        username: c.identifier,
+        email: c.identifier.includes('@') ? c.identifier : `${c.identifier}@digidocs.ma`,
+        password: c.password,
+        name: c.name,
+        role: role === 'admin' ? 'client' : role
+      });
+      this.data.errorMessage.set(null);
+    }
+  }
+
   async handleLogin() {
-    if (this.authForm.controls['email'].invalid) {
-      this.data.errorMessage.set('Veuillez entrer une adresse e-mail valide.');
+    const identifier = (this.authForm.get('identifier')?.value || this.authForm.get('username')?.value || this.authForm.get('email')?.value || '').trim();
+    const password = (this.authForm.get('password')?.value || '').trim();
+
+    if (!identifier) {
+      this.data.errorMessage.set("Veuillez saisir votre nom d'utilisateur ou votre adresse e-mail.");
       return;
     }
+    if (!password) {
+      this.data.errorMessage.set('Veuillez saisir votre mot de passe.');
+      return;
+    }
+
     try {
-      const email = this.authForm.value.email;
-      await this.data.login(email);
+      await this.data.login(identifier, password);
       this.showAuthModal.set(null);
       this.syncEstimatorToOrderForm();
       this.authForm.reset({ role: 'client', city: 'Casablanca' });
     } catch {
-      // Error is set on data service
+      // Error is handled on data service
     }
   }
 
   async handleRegister() {
-    if (this.authForm.controls['name'].invalid || this.authForm.controls['email'].invalid || this.authForm.controls['role'].invalid) {
-      this.data.errorMessage.set('Veuillez remplir les champs obligatoires (Nom, Email, Rôle).');
+    const name = this.authForm.get('name')?.value;
+    const email = this.authForm.get('email')?.value;
+    const password = this.authForm.get('password')?.value;
+    const role = this.authForm.get('role')?.value;
+
+    if (!name || !email || !password || !role) {
+      this.data.errorMessage.set('Veuillez remplir les champs obligatoires (Nom, Email, Mot de passe, Rôle).');
       return;
     }
+
+    const payload = {
+      ...this.authForm.value,
+      username: this.authForm.get('username')?.value || email.split('@')[0]
+    };
+
     try {
-      await this.data.register(this.authForm.value);
+      await this.data.register(payload);
       this.showAuthModal.set(null);
       this.syncEstimatorToOrderForm();
       this.authForm.reset({ role: 'client', city: 'Casablanca' });
     } catch {
-      // Error is set on data service
+      // Error is handled on data service
     }
   }
 
@@ -835,5 +941,210 @@ export class App {
     } catch {
       // Error is set on data service
     }
+  }
+
+  // --- SERVICE CATALOG MANAGEMENT METHODS ---
+
+  openNewServiceModal() {
+    this.editingServiceId.set(null);
+    this.serviceImageBase64.set(null);
+    this.serviceOptionsList.set([]);
+    this.newOptionName.set('');
+    this.newOptionPrice.set(0);
+    this.serviceForm.reset({
+      name: '',
+      category: 'saisie',
+      description: '',
+      priceMethod: 'per_page',
+      basePrice: 0,
+      unitPriceName: 'Page',
+      unitPrice: 2.0,
+      isActive: true,
+      imageUrl: ''
+    });
+    this.showServiceModal.set(true);
+  }
+
+  openEditServiceModal(service: Service) {
+    this.editingServiceId.set(service.id);
+    this.serviceImageBase64.set(service.imageUrl || null);
+    this.serviceOptionsList.set(service.options ? [...service.options] : []);
+    this.newOptionName.set('');
+    this.newOptionPrice.set(0);
+    this.serviceForm.patchValue({
+      name: service.name,
+      category: service.category,
+      description: service.description,
+      priceMethod: service.priceMethod,
+      basePrice: service.basePrice,
+      unitPriceName: service.unitPriceName,
+      unitPrice: service.unitPrice,
+      isActive: service.isActive,
+      imageUrl: service.imageUrl || ''
+    });
+    this.showServiceModal.set(true);
+  }
+
+  onServiceImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        this.serviceImageBase64.set(base64);
+        this.serviceForm.patchValue({ imageUrl: base64 });
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  removeServiceImage() {
+    this.serviceImageBase64.set(null);
+    this.serviceForm.patchValue({ imageUrl: '' });
+  }
+
+  addServiceOption() {
+    const name = this.newOptionName().trim();
+    const price = Number(this.newOptionPrice()) || 0;
+    if (!name) {
+      this.data.errorMessage.set("Veuillez saisir l'intitulé de l'option.");
+      return;
+    }
+    const newOpt = {
+      id: 'opt-' + Math.random().toString(36).substring(2, 9),
+      name,
+      price
+    };
+    this.serviceOptionsList.update(list => [...list, newOpt]);
+    this.newOptionName.set('');
+    this.newOptionPrice.set(0);
+  }
+
+  removeServiceOption(optId: string) {
+    this.serviceOptionsList.update(list => list.filter(o => o.id !== optId));
+  }
+
+  async handleSaveService() {
+    if (this.serviceForm.invalid) {
+      this.data.errorMessage.set('Veuillez renseigner le nom, la catégorie et les tarifs du service.');
+      return;
+    }
+
+    const val = this.serviceForm.value;
+    const payload: Partial<Service> = {
+      id: this.editingServiceId() || undefined,
+      name: val.name.trim(),
+      category: val.category,
+      description: val.description.trim(),
+      priceMethod: val.priceMethod,
+      basePrice: Number(val.basePrice) || 0,
+      unitPriceName: val.unitPriceName.trim() || 'Unité',
+      unitPrice: Number(val.unitPrice) || 0,
+      isActive: val.isActive !== false,
+      imageUrl: this.serviceImageBase64() || val.imageUrl || undefined,
+      options: this.serviceOptionsList()
+    };
+
+    try {
+      await this.data.saveService(payload);
+      this.showServiceModal.set(false);
+      this.editingServiceId.set(null);
+      this.serviceImageBase64.set(null);
+    } catch {
+      // Handled by data service
+    }
+  }
+
+  async handleDeleteService(service: Service) {
+    if (confirm(`Êtes-vous certain de vouloir supprimer le service "${service.name}" du catalogue ?`)) {
+      try {
+        await this.data.deleteService(service.id);
+      } catch {
+        // Handled by data service
+      }
+    }
+  }
+
+  async toggleServiceActive(service: Service) {
+    try {
+      await this.data.saveService({
+        ...service,
+        isActive: !service.isActive
+      });
+    } catch {
+      // Handled by data service
+    }
+  }
+
+  // --- NOTIFICATION HELPERS ---
+
+  toggleNotificationsDropdown() {
+    this.showNotificationsDropdown.update(v => !v);
+  }
+
+  closeNotificationsDropdown() {
+    this.showNotificationsDropdown.set(false);
+  }
+
+  openNotificationOrder(notification: AppNotification) {
+    if (!notification.read) {
+      this.data.markNotificationAsRead(notification.id);
+    }
+    this.showNotificationsDropdown.set(false);
+    if (notification.orderId) {
+      this.activeTab.set('orders');
+      this.selectedOrderId.set(notification.orderId);
+    }
+  }
+
+  formatRelativeTime(isoString: string): string {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHours = Math.floor(diffMin / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffSec < 60) return "À l'instant";
+      if (diffMin < 60) return `Il y a ${diffMin} min`;
+      if (diffHours < 24) return `Il y a ${diffHours} h`;
+      if (diffDays === 1) return `Hier à ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      return `${date.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} à ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } catch {
+      return isoString;
+    }
+  }
+
+  getNotificationIcon(title: string, message: string): { icon: string; bg: string; text: string } {
+    const t = (title + ' ' + message).toLowerCase();
+    if (t.includes('créée') || t.includes('nouvelle commande') || t.includes('enregistrée')) {
+      return { icon: 'add_shopping_cart', bg: 'bg-emerald-50 text-emerald-600 border-emerald-200', text: 'text-emerald-700' };
+    }
+    if (t.includes('devis')) {
+      return { icon: 'request_quote', bg: 'bg-indigo-50 text-indigo-600 border-indigo-200', text: 'text-indigo-700' };
+    }
+    if (t.includes('acompte') || t.includes('solde') || t.includes('paiement') || t.includes('reçu')) {
+      return { icon: 'payments', bg: 'bg-amber-50 text-amber-600 border-amber-200', text: 'text-amber-700' };
+    }
+    if (t.includes('assign') || t.includes('tâche')) {
+      return { icon: 'assignment_ind', bg: 'bg-blue-50 text-blue-600 border-blue-200', text: 'text-blue-700' };
+    }
+    if (t.includes('qualité') || t.includes('validé')) {
+      return { icon: 'verified', bg: 'bg-teal-50 text-teal-600 border-teal-200', text: 'text-teal-700' };
+    }
+    if (t.includes('livr') || t.includes('terminé') || t.includes('expéd')) {
+      return { icon: 'local_shipping', bg: 'bg-purple-50 text-purple-600 border-purple-200', text: 'text-purple-700' };
+    }
+    if (t.includes('rejet') || t.includes('refus') || t.includes('annul')) {
+      return { icon: 'warning', bg: 'bg-rose-50 text-rose-600 border-rose-200', text: 'text-rose-700' };
+    }
+    if (t.includes('message')) {
+      return { icon: 'chat', bg: 'bg-sky-50 text-sky-600 border-sky-200', text: 'text-sky-700' };
+    }
+    return { icon: 'notifications', bg: 'bg-stone-100 text-stone-700 border-stone-200', text: 'text-stone-700' };
   }
 }

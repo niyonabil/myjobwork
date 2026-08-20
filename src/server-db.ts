@@ -9,7 +9,9 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, collection, deleteDoc } fro
 export interface User {
   id: string;
   name: string;
+  username?: string;
   email: string;
+  password?: string;
   role: 'admin' | 'partner' | 'operator' | 'qa' | 'client';
   company?: string;
   ice?: string;
@@ -51,6 +53,7 @@ export interface Service {
   unitPrice: number;
   isActive: boolean;
   options: ServiceOption[];
+  imageUrl?: string;
 }
 
 export interface OrderFile {
@@ -407,7 +410,9 @@ export async function loadDatabase(): Promise<AppDatabase> {
       {
         id: "usr-admin-1",
         name: "Administrateur Principal (Boguiman)",
+        username: "boguiman",
         email: "boguiman@gmail.com",
+        password: "admin123",
         role: "admin",
         phone: "+212 661-000001",
         city: "Casablanca",
@@ -416,7 +421,9 @@ export async function loadDatabase(): Promise<AppDatabase> {
       {
         id: "usr-admin-2",
         name: "Administrateur (Nabil)",
+        username: "nabil",
         email: "nabilniyo122@gmail.com",
+        password: "admin123",
         role: "admin",
         phone: "+212 661-112233",
         city: "Casablanca",
@@ -425,7 +432,9 @@ export async function loadDatabase(): Promise<AppDatabase> {
       {
         id: "usr-admin-3",
         name: "Administrateur Système",
+        username: "admin",
         email: "admin@remix.ma",
+        password: "admin123",
         role: "admin",
         phone: "+212 522-123456",
         city: "Casablanca",
@@ -434,9 +443,17 @@ export async function loadDatabase(): Promise<AppDatabase> {
     ];
 
     for (const admin of defaultAdmins) {
-      if (!users.some(u => u.email.toLowerCase() === admin.email.toLowerCase())) {
+      const existing = users.find(u => 
+        u.email.toLowerCase() === admin.email.toLowerCase() || 
+        (u.username && admin.username && u.username.toLowerCase() === admin.username.toLowerCase())
+      );
+      if (!existing) {
         users.push(admin);
         await setDoc(doc(db, 'users', admin.id), admin);
+      } else if (!existing.password || !existing.username) {
+        existing.password = existing.password || admin.password;
+        existing.username = existing.username || admin.username;
+        await setDoc(doc(db, 'users', existing.id), existing);
       }
     }
 
@@ -683,7 +700,9 @@ function getSeededDatabase(): AppDatabase {
     {
       id: "usr-admin-1",
       name: "Administrateur Principal (Boguiman)",
+      username: "boguiman",
       email: "boguiman@gmail.com",
+      password: "admin123",
       role: "admin",
       phone: "+212 661-000001",
       city: "Casablanca",
@@ -692,7 +711,9 @@ function getSeededDatabase(): AppDatabase {
     {
       id: "usr-admin-2",
       name: "Administrateur (Nabil)",
+      username: "nabil",
       email: "nabilniyo122@gmail.com",
+      password: "admin123",
       role: "admin",
       phone: "+212 661-112233",
       city: "Casablanca",
@@ -701,7 +722,9 @@ function getSeededDatabase(): AppDatabase {
     {
       id: "usr-admin-3",
       name: "Administrateur Système",
+      username: "admin",
       email: "admin@remix.ma",
+      password: "admin123",
       role: "admin",
       phone: "+212 522-123456",
       city: "Casablanca",
